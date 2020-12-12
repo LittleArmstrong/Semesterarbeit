@@ -1,0 +1,5 @@
+*.bk?
+*.pyc
+*.vcmx
+*.chm
+*.db
