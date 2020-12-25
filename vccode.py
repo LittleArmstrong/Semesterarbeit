@@ -1,7 +1,9 @@
 import sys
 import os
-sys.path.append(os.getcwd())
 
-from schnittstelle import Schnittstelle
-from feeder_komponente import FeederKomponente
-from transport_komponente import TransportKomponente
+pfad_zum_code = r'C:\Users\Baris\Desktop\Semesterarbeit'
+sys.path.append(pfad_zum_code)
+
+from komponenten.schnittstelle import Schnittstelle
+from komponenten.feeder import Feeder
+from komponenten.transport import Transport
