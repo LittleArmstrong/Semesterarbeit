@@ -7,3 +7,4 @@ sys.path.append(pfad_zum_code)
 from komponenten.schnittstelle import Schnittstelle
 from komponenten.feeder import Feeder
 from komponenten.transport import Transport
+from komponenten.roboter import Roboter

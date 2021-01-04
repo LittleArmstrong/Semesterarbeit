@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import tkinter as tk
 from tkinter import ttk
 from komponenten.datenbank import Datenbank
@@ -5,12 +8,11 @@ import konstanten
 
 class FeederTab:
     def __init__(self, tab_parent, komponenten_mit_typ_feeder):
-        if not komponenten_mit_typ_feeder:
-            komponenten_mit_typ_feeder = ['None']
         self.TYP = 'Feeder'
         self.DB_PFAD = konstanten.PFAD_SIGNALE_REAL
         self.DB_TABELLE = konstanten.TABELLE_SIGNALE
 
+        komponenten_mit_typ_feeder.sort()
         self.main(tab_parent, komponenten_mit_typ_feeder)
 
     def main(self, tab_parent, komponenten_mit_typ_feeder):
@@ -26,10 +28,11 @@ class FeederTab:
         erstelle_var_feeder_komponente.set(komponenten_mit_typ_feeder[0])
 
         erstelle_auswahl_komponente_typ_feeder = tk.OptionMenu(tab_feeder, erstelle_var_feeder_komponente, *komponenten_mit_typ_feeder)
-        erstelle_auswahl_komponente_typ_feeder.grid(row=0, column=0, padx=10, pady=15, sticky='W')
+        erstelle_auswahl_komponente_typ_feeder.grid(row=0, column=0, padx=10, pady=10, sticky='SW')
 
         erstelle_button = tk.Button(tab_feeder, text='Erstellen', command= lambda: self.cmd_erstellen(erstelle_var_feeder_komponente.get()))
-        erstelle_button.grid(row=0, column=1, padx=10, pady=15, sticky='W')
+        erstelle_button.config(width=12)
+        erstelle_button.grid(row=0, column=1, padx=0, pady=10, sticky='W')
 
     def cmd_erstellen(self, komp_name):
         db=Datenbank(self.DB_PFAD)
@@ -49,15 +52,17 @@ class FeederTab:
 
         vcmd = (tab_feeder.register(self.OnValidierung), '%P')
         intervall_entry = tk.Entry(tab_feeder, text='0', textvariable=intervall_var_intervall, validate='key', validatecommand=vcmd)
-        intervall_entry.grid(row=1, column=1, padx=10, pady=0, sticky='W')
+        intervall_entry.config(width=15)
+        intervall_entry.grid(row=1, column=1, padx=0, pady=0, sticky='W')
 
         intervall_checkbox = tk.Checkbutton(tab_feeder, text='Direkt', variable=intervall_var_direkt_erstellen)
-        intervall_checkbox.grid(row=1, column=2, padx=10, pady=0, sticky='W')
+        intervall_checkbox.grid(row=1, column=2, padx=5, pady=0, sticky='W')
 
         intervall_button_cmd = lambda: self.cmd_funktion_erstelle_im_intervall(\
             intervall_var_direkt_erstellen.get(),  intervall_var_komponente_typ_feeder.get(), intervall_var_intervall.get())
         intervall_button = tk.Button(tab_feeder, text='Erstellen', command = intervall_button_cmd)
-        intervall_button.grid(row=1, column=3, padx=10, pady=0, sticky='W')
+        intervall_button.config(width=12)
+        intervall_button.grid(row=1, column=3, padx=5, pady=0, sticky='W')
 
     def OnValidierung(self, entry_wert):
         if entry_wert.isdigit() or entry_wert == '':

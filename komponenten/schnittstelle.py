@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 from .datenbank import Datenbank
 from ast import literal_eval
 import os
@@ -17,10 +20,12 @@ class Schnittstelle():
 
         # Referenz zur Komponente
         self.Komponente = vcscript.getComponent()
+
+        # Referenz zur Anwendung
+        self.App = vcscript.getApplication()
         
         # Referenz zu allen Komponenten
-        alle_komponenten = vcscript.getApplication().Components
-        self.Alle_komponenten = {komponente.Name : komponente for komponente in alle_komponenten}
+        self.Alle_komponenten = {komponente.Name : komponente for komponente in self.App.Components}
 
         # Erstelle notwendige Eigenschaften und Behaviours
         self.konfiguriere_komponente(vcscript)
@@ -60,6 +65,7 @@ class Schnittstelle():
 
     def OnStart(self):        
         if self.Anlage == 'real':
+            self.Alle_komponenten = {komponente.Name : komponente for komponente in self.App.Components}
             self.reset_alle_datenbanken()
             self.update_komponenten_datenbank()
 
@@ -93,8 +99,8 @@ class Schnittstelle():
         liste.append(db_zeile)
 
     def update_komponenten_datenbank(self):
+        db = Datenbank(self.PFAD_DATENBANK_KOMPONENTEN)
         for name, komponente in self.Alle_komponenten.items():
-            db = Datenbank(self.PFAD_DATENBANK_KOMPONENTEN)
             typ = komponente.getProperty('Schnittstelle::Typ')
             if typ and typ.Value:
                 parameter = (name, typ.Value)

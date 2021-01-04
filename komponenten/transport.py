@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 from .datenbank import Datenbank
 from ast import literal_eval
 import konstanten
@@ -76,7 +79,7 @@ class Transport():
             frame = self.Komponente.findFeature('frame_2') or self.Komponente.findFeature('Mid')
             self.Sensor.Frame = frame
         
-        # Lege Produkt fuer alle verbundene Komponenten fest
+        # Lege Produkt für alle verbundene Komponenten fest
         if self.Vorheriges_produkt != self.Produkt.Value:
             self.Vorheriges_produkt = self.Produkt.Value
             self.set_part(self.Produkt, self.Creator)
@@ -207,7 +210,6 @@ class Transport():
             komponente = komponente.findBehaviour(interface).ConnectedComponent
     
     def umleiten(self, komponente):
-        print('okay')
         komponente.delete()
         if not self.Umleiten_zu_Path or not self.Umleiten_zu_Position:
             ziel_komponente = self.App.findComponent(self.Umleiten_zu)
