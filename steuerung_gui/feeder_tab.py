@@ -4,65 +4,65 @@
 import tkinter as tk
 from tkinter import ttk
 from komponenten.datenbank import Datenbank
-import konstanten
 
 class FeederTab:
-    def __init__(self, tab_parent, komponenten_mit_typ_feeder):
+    def __init__(self, steuerung):
         self.TYP = 'Feeder'
-        self.DB_PFAD = konstanten.PFAD_SIGNALE_REAL
-        self.DB_TABELLE = konstanten.TABELLE_SIGNALE
 
-        komponenten_mit_typ_feeder.sort()
-        self.main(tab_parent, komponenten_mit_typ_feeder)
+        self.Steuerung = steuerung
+        self.Tab_feeder = ttk.Frame(steuerung.Tab_parent)
+        self.Feeder_komponenten = sorted([name for name, typ in self.Steuerung.Komponenten if typ == self.TYP])
+        self.Feeder_auswahl = tk.StringVar()
+        self.Vcmd = (self.Tab_feeder.register(self.OnValidierung), '%P')
 
-    def main(self, tab_parent, komponenten_mit_typ_feeder):
-        tab_feeder = ttk.Frame(tab_parent)
-        tab_parent.add(tab_feeder, text = self.TYP)
+        steuerung.Tab_parent.add(self.Tab_feeder, text = self.TYP)
+        self.feederauswahl()
+        self.funktion_erstelle()
+        self.funktion_intervall()
+
+
+    def feederauswahl(self):
+        self.Feeder_auswahl.set(self.Feeder_komponenten[0])
         
-        self.funktion_erstelle(tab_feeder, komponenten_mit_typ_feeder)
-        self.funktion_erstelle_im_intervall(tab_feeder, komponenten_mit_typ_feeder)
+        frame_auswahl = tk.Frame(self.Tab_feeder)
+        frame_auswahl.grid(row=0, padx=(10,0), pady=(10, 5), sticky='W')
+
+        feederliste = tk.OptionMenu(frame_auswahl, self.Feeder_auswahl, *self.Feeder_komponenten)
+        self.Steuerung.platziere_widget(feederliste)
     
 
-    def funktion_erstelle(self, tab_feeder, komponenten_mit_typ_feeder):
-        erstelle_var_feeder_komponente = tk.StringVar()
-        erstelle_var_feeder_komponente.set(komponenten_mit_typ_feeder[0])
+    def funktion_erstelle(self):
+        frame_erstelle = tk.Frame(self.Tab_feeder)
+        frame_erstelle.grid(row=1, padx=(10,0), pady=(5,5), sticky='W')
 
-        erstelle_auswahl_komponente_typ_feeder = tk.OptionMenu(tab_feeder, erstelle_var_feeder_komponente, *komponenten_mit_typ_feeder)
-        erstelle_auswahl_komponente_typ_feeder.grid(row=0, column=0, padx=10, pady=10, sticky='SW')
+        cmd_erstelle = lambda: self.Steuerung.update_datenbank(self.Feeder_auswahl.get(), self.TYP, 'erstelle', '')
+        button_erstelle = tk.Button(frame_erstelle, text='Erstellen', command= cmd_erstelle)
+        
+        widget = button_erstelle
+        breite = 12
+        self.Steuerung.platziere_widget(widget, breite)
 
-        erstelle_button = tk.Button(tab_feeder, text='Erstellen', command= lambda: self.cmd_erstellen(erstelle_var_feeder_komponente.get()))
-        erstelle_button.config(width=12)
-        erstelle_button.grid(row=0, column=1, padx=0, pady=10, sticky='W')
 
-    def cmd_erstellen(self, komp_name):
-        db=Datenbank(self.DB_PFAD)
-        params = (komp_name, self.TYP, 'erstelle', '')
-        db.replace_query(self.DB_TABELLE, params)
+    def funktion_intervall(self):
+        sofort = tk.IntVar()
+        intervall = tk.StringVar()
 
-    def funktion_erstelle_im_intervall(self, tab_feeder, komponenten_mit_typ_feeder):
-        intervall_var_direkt_erstellen = tk.IntVar()
-        intervall_var_direkt_erstellen.set(1)
-        intervall_var_intervall = tk.StringVar()
-        intervall_var_intervall.set('0')
-        intervall_var_komponente_typ_feeder = tk.StringVar()
-        intervall_var_komponente_typ_feeder.set(komponenten_mit_typ_feeder[0])
+        sofort.set(1)
+        intervall.set('0')
 
-        intervall_auswahl_komponente_typ_feeder = tk.OptionMenu(tab_feeder, intervall_var_komponente_typ_feeder, *komponenten_mit_typ_feeder)
-        intervall_auswahl_komponente_typ_feeder.grid(row=1, column=0, padx=10, pady=0, sticky='W')
+        frame_intervall = tk.Frame(self.Tab_feeder)
+        frame_intervall.grid(row=2, padx=(10,0), pady=(5,5), sticky='W')
 
-        vcmd = (tab_feeder.register(self.OnValidierung), '%P')
-        intervall_entry = tk.Entry(tab_feeder, text='0', textvariable=intervall_var_intervall, validate='key', validatecommand=vcmd)
-        intervall_entry.config(width=15)
-        intervall_entry.grid(row=1, column=1, padx=0, pady=0, sticky='W')
+        entry_intervall = tk.Entry(frame_intervall, text='0', textvariable=intervall, validate='key', validatecommand=self.Vcmd)
+        checkbox_sofort = tk.Checkbutton(frame_intervall, text='Sofort', variable=sofort)
 
-        intervall_checkbox = tk.Checkbutton(tab_feeder, text='Direkt', variable=intervall_var_direkt_erstellen)
-        intervall_checkbox.grid(row=1, column=2, padx=5, pady=0, sticky='W')
+        cmd_intervall = lambda: self.cmd_funktion_intervall(sofort.get(), self.Feeder_auswahl.get(), intervall.get())
+        button_intervall = tk.Button(frame_intervall, text='Erstellen', command = cmd_intervall)
 
-        intervall_button_cmd = lambda: self.cmd_funktion_erstelle_im_intervall(\
-            intervall_var_direkt_erstellen.get(),  intervall_var_komponente_typ_feeder.get(), intervall_var_intervall.get())
-        intervall_button = tk.Button(tab_feeder, text='Erstellen', command = intervall_button_cmd)
-        intervall_button.config(width=12)
-        intervall_button.grid(row=1, column=3, padx=5, pady=0, sticky='W')
+        widgets_eii = ((entry_intervall, 3), (checkbox_sofort, None), (button_intervall, 12))
+        for widget, breite in widgets_eii:
+            self.Steuerung.platziere_widget(widget, breite)
+
 
     def OnValidierung(self, entry_wert):
         if entry_wert.isdigit() or entry_wert == '':
@@ -70,12 +70,9 @@ class FeederTab:
         else:
             return False
 
-    def cmd_funktion_erstelle_im_intervall(self, checkbox_wert, komponent_name, intervall):
-        if checkbox_wert:
-            funktion = 'intervall_direkt'
-        else:
-            funktion = 'intervall'
-        db = Datenbank(self.DB_PFAD)
-        params = (komponent_name, self.TYP, funktion, intervall or '0')
-        db.replace_query(self.DB_TABELLE, params)
+    def cmd_funktion_intervall(self, checkbox, komponente, intervall):
+        funktion = 'intervall'
+        if checkbox:
+            funktion = 'intervall_sofort'
+        self.Steuerung.update_datenbank(komponente, self.TYP, funktion, intervall or '0')
 

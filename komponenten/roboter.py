@@ -12,17 +12,20 @@ class Roboter():
         self.App = vcscript.getApplication()
         self.Komponente = vcscript.getComponent()
         self.vcrobot = vcrobot
-        
-        self.Roboter = None
-        self.Signal_input = None
-        self.Komponenten_sensor = None
-        self.Buffer = []
-        self.Route = []
-        self.Komponenten_auf_route = []
-        self.Komponente_im_greifer = None
-        
-        self.Maschinen = []
 
+        self.konfiguriere_komponente(vcscript)
+        
+        self.Buffer = []
+        self.Roboter = None
+        self.Komponente_im_greifer = None
+        self.Komponenten_auf_route = []
+        self.Komponenten_sensor = None
+        self.Maschinen = []
+        self.Maschinen_ports = []
+        self.Route = []
+        self.Route_ports = []
+        self.Signal_input = None
+        
         self.suspend = vcscript.suspendRun
         self.resume = vcscript.resumeRun
 
@@ -38,31 +41,28 @@ class Roboter():
         self.reset_maschinen_signale()
 
         self.Buffer = []
-        self.Komponente_im_greifer = None
         self.Komponenten_auf_route = [None for komp in self.Route]
-        self.Verbundene_routen_ports = [routen_info[2] for routen_info in self.Route]
-        self.Maschinen_ports = [maschinen_info[5] for maschinen_info in self.Maschinen]
+        self.Komponente_im_greifer = None
 
     def OnSignal(self, signal):
-        pass
+        if signal.Name == 'UpdateSignal':
+            update = literal_eval(signal.Value) 
+            if update['Funktion'] == 'auto':
+                pass
 
     def OnRun(self):
         while True:
             self.suspend()
             for i in range(len(self.Komponenten_auf_route) -2, -1, -1):
                 komponente = self.Komponenten_auf_route[i]
-
                 if not komponente:
                     continue
-                
-                next_komponente = self.Komponenten_auf_route[i+1]
                 typ = self.Route[i][1]
-
                 if typ == 'Maschine':
                     maschine = self.Route[i][0]
                     offen_signal = [maschinen_info[1] for maschinen_info in self.Maschinen if maschinen_info[0] == maschine][0]
                     aufmachen_signal = [maschinen_info[3] for maschinen_info in self.Maschinen if maschinen_info[0] == maschine][0]
-
+                next_komponente = self.Komponenten_auf_route[i+1]
                 if komponente and not next_komponente:
                     if typ == 'Maschine' and not offen_signal.Value:
                         aufmachen_signal.signal(True)
@@ -77,6 +77,7 @@ class Roboter():
 
     def ermittle_maschinen(self):
         self.Maschinen = []
+        self.Maschinen_ports = []
         maschinen = [route[0] for route in self.Route if route[1] == 'Maschine']
         maschinen_port_start = 300
         for maschine in maschinen:
@@ -88,11 +89,12 @@ class Roboter():
             maschinen_port_start += 1
             maschinen_info = (maschine, offen_signal, zumachen_signal, starten_signal, aufmachen_signal, maschinen_port)
             self.Maschinen.append(maschinen_info)
+            self.Maschinen_ports.append(maschinen_port)
 
     def ermittle_route(self):
         self.Route = []
-        verbundene_routen_ports = [port for port in self.Signal_input.getAllConnectedPorts() if 150 <= port < 200]
-        for port in verbundene_routen_ports:
+        self.Route_ports = [port for port in self.Signal_input.getAllConnectedPorts() if 150 <= port < 200]
+        for port in self.Route_ports:
             komponenten_container = self.Signal_input.getConnectedExternalSignals(port)[0].Component
             typ = komponenten_container.getProperty('Schnittstelle::Typ').Value
             route = (komponenten_container, typ, port)
@@ -115,6 +117,16 @@ class Roboter():
             self.Komponenten_auf_route[index] = None
             self.check_routen_start()
         self.Roboter.driveJoints(0,0,90,0,0,0)
+    
+    def konfiguriere_komponente(self, vcscript):
+        script = self.Komponente.findBehaviour('Script')
+        if not self.Komponente.findBehaviour('UpdateSignal'):
+            self.Update_signal = self.Komponente.createBehaviour(vcscript.VC_STRINGSIGNAL, 'UpdateSignal')
+            self.Update_signal.Connections = [script]
+
+        if not self.Komponente.getProperty('Schnittstelle::Typ'):
+            typ = self.Komponente.createProperty(vcscript.String, 'Schnittstelle::Typ')
+            typ.Value = self.TYP
 
     def platziere_komponente(self, index):
         route = self.Route[index + 1]
@@ -164,7 +176,7 @@ class Roboter():
         if port == 150 and bool_wert:
             self.Buffer.append(self.Komponenten_sensor.Value)
             self.check_routen_start()
-        elif port in self.Verbundene_routen_ports[1:-1] and bool_wert:
+        elif port in self.Route_ports[1:-1] and bool_wert:
             self.resume()
         elif port in self.Maschinen_ports and not bool_wert:
                 self.steuere_maschine('ende', maschine=None, port=port)

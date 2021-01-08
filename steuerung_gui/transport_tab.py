@@ -4,49 +4,74 @@
 import tkinter as tk
 from tkinter import ttk
 from komponenten.datenbank import Datenbank
-import konstanten
+
 
 class TransportTab():
-
-    def __init__(self, tab_parent, komponenten_mit_typ_transport):
+    def __init__(self, steuerung):
         self.TYP = 'Transport'
-        self.DB_PFAD = konstanten.PFAD_SIGNALE_REAL
-        self.DB_TABELLE = konstanten.TABELLE_SIGNALE
 
-        komponenten_mit_typ_transport.sort()
-        self.main(tab_parent, komponenten_mit_typ_transport)
+        self.Steuerung = steuerung
+        self.Tab_transport = ttk.Frame(steuerung.Tab_parent)
+        self.Transport_auswahl = tk.StringVar()
+        self.Transport_komponenten = sorted([name for name, typ in self.Steuerung.Komponenten if typ == self.TYP])
+        self.Vcmd = (self.Tab_transport.register(self.OnValidierung), '%P')
 
-    def main(self, tab_parent, komponenten_mit_typ_transport):
-        tab_transport = ttk.Frame(tab_parent)
-        tab_parent.add(tab_transport, text='Transport')
-
-        self.funktion_komponente_umleiten(tab_transport, komponenten_mit_typ_transport)
+        steuerung.Tab_parent.add(self.Tab_transport, text='Transport')
+        self.transportauswahl()
+        self.funktion_komponente_umleiten()
+        self.funktion_erstellen_entfernen()
     
-    def funktion_komponente_umleiten(self, tab_transport, komponenten_mit_typ_transport):
-        var_komponente_typ_transport_von = tk.StringVar()
-        var_komponente_typ_transport_von.set(komponenten_mit_typ_transport[0])
-        var_komponente_typ_transport_zu = tk.StringVar()
-        var_komponente_typ_transport_zu.set(komponenten_mit_typ_transport[0])
 
-        label_von = tk.Label(tab_transport, text = 'Von')
-        label_von.grid(row=0, column=0, padx=10, pady=10, sticky='W')
+    def transportauswahl(self):
+        self.Transport_auswahl.set(self.Transport_komponenten[0])
 
-        auswahl_komponente_typ_transport_von = tk.OptionMenu(tab_transport, var_komponente_typ_transport_von, *komponenten_mit_typ_transport)
-        auswahl_komponente_typ_transport_von.grid(row=0, column=1, padx=0, pady=10, sticky='W')
+        frame_auswahl = tk.Frame(self.Tab_transport)
+        frame_auswahl.grid(row=0, padx=(10,0), pady=(10, 5), sticky='W')
 
-        label_zu = tk.Label(tab_transport, text = 'zu')
-        label_zu.grid(row=0, column=2, padx=5, pady=10, sticky='W')
+        transportliste = tk.OptionMenu(frame_auswahl, self.Transport_auswahl, *self.Transport_komponenten)
+        self.Steuerung.platziere_widget(transportliste)
 
-        auswahl_komponente_typ_transport_zu = tk.OptionMenu(tab_transport, var_komponente_typ_transport_zu, *komponenten_mit_typ_transport)
-        auswahl_komponente_typ_transport_zu.grid(row=0, column=3, padx=0, pady=10, sticky='W')
 
-        command = lambda: self.cmd_funktion_umleiten(var_komponente_typ_transport_von.get(), var_komponente_typ_transport_zu.get())
-        umleite_button = tk.Button(tab_transport, text='Umleiten', command = command)
-        umleite_button.config(width=12)
-        umleite_button.grid(row=0, column=4, padx=10, pady=10, sticky='W')
+    def funktion_komponente_umleiten(self):
+        zu_komponente = tk.StringVar()
+        zu_komponente.set(self.Transport_komponenten[1])
+
+        frame_ku = tk.Frame(self.Tab_transport)
+        frame_ku.grid(row=1, padx=(10,0), pady=(5,5), sticky='W') 
+
+        auswahl_komponente = tk.OptionMenu(frame_ku, zu_komponente, *self.Transport_komponenten)
+        
+        cmd = lambda: self.Steuerung.update_datenbank(self.Transport_auswahl.get(), self.TYP, 'umleiten', zu_komponente.get())
+        button_umleiten = tk.Button(frame_ku, text='Umleiten', command = cmd, takefocus=0)
+
+        widgets_ku = ((auswahl_komponente, None), (button_umleiten, 12))
+        for widget, breite in widgets_ku:
+            self.Steuerung.platziere_widget(widget, breite)
     
-    def cmd_funktion_umleiten(self, von_komponente, zu_komponente):
-        db = Datenbank(self.DB_PFAD)
-        parameter = (von_komponente, self.TYP, 'umleiten', zu_komponente)
-        db.replace_query(self.DB_TABELLE, parameter)
+    
+    def funktion_erstellen_entfernen(self):
+        intervall = tk.StringVar()
+        intervall.set('0')
+
+        frame_ee = tk.Frame(self.Tab_transport)
+        frame_ee.grid(row=2, padx=(10,0), pady=(5,5), sticky='W')
+
+        entry_intervall = tk.Entry(frame_ee, takefocus=0, textvariable=intervall, validate='key', validatecommand=self.Vcmd)
+
+        cmd_erstellen = lambda: self.Steuerung.update_datenbank(self.Transport_auswahl.get(), self.TYP, 'erstelle', intervall.get() or '0')
+        button_erstellen = tk.Button(frame_ee, text='Erstellen', command=cmd_erstellen, takefocus=0)
+
+        cmd_entfernen = lambda: self.Steuerung.update_datenbank(self.Transport_auswahl.get(), self.TYP, 'entferne', '')
+        button_entfernen = tk.Button(frame_ee, text='Entfernen', command=cmd_entfernen, takefocus=0)
+
+        widgets_ee = ((entry_intervall, 3), (button_erstellen, 12), (button_entfernen, 12))
+        for widget, breite in widgets_ee:
+            self.Steuerung.platziere_widget(widget, breite)
+
+    
+    def OnValidierung(self, entry_wert):
+        if entry_wert=='' or entry_wert.isdigit():
+            return True
+        else:
+            return False
 

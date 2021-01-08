@@ -7,34 +7,50 @@ from komponenten.datenbank import Datenbank
 from steuerung_gui.feeder_tab import FeederTab
 from steuerung_gui.transport_tab import TransportTab
 from steuerung_gui.roboter_tab import RoboterTab
+from steuerung_gui.maschine_tab import MaschineTab
 import konstanten
 
-# --- Fenster
-fenster = tk.Tk()
-fenster.title('Steuerung')
-fenster.geometry('500x280')
+class Steuerung:
+    def __init__(self):
+        self.DB_PFAD = konstanten.PFAD_SIGNALE_REAL
+        self.DB_TABELLE = konstanten.TABELLE_SIGNALE
 
-tab_parent = ttk.Notebook()
+        # --- Fenster
+        fenster = tk.Tk()
+        fenster.title('Steuerung')
+        fenster.geometry('400x150')
 
-# --- Wahllisten
-pfad = konstanten.PFAD_KOMPONENTEN
-tabelle = konstanten.TABELLE_KOMPONENTEN
-db = Datenbank(pfad)
-cursor = db.get_all_data(tabelle, sofort = False)
-alle_komponenten_mit_typ = [(name, typ) for name, typ in cursor]
-komponenten_mit_typ_feeder = [name for name, typ in alle_komponenten_mit_typ if typ == 'Feeder']
-komponenten_mit_typ_transport = [name for name, typ in alle_komponenten_mit_typ if typ == 'Transport']
-komponenten_mit_typ_roboter = [name for name, typ in alle_komponenten_mit_typ if typ == 'Roboter']
+        self.Tab_parent = ttk.Notebook()
 
-# --- Feeder-Tab
-FeederTab(tab_parent, komponenten_mit_typ_feeder)
+        # --- Komponentenauswahl
+        db = Datenbank(konstanten.PFAD_KOMPONENTEN)
+        cursor = db.get_all_data(konstanten.TABELLE_KOMPONENTEN, sofort = False)
+        self.Komponenten = [(name, typ) for name, typ in cursor]
 
-# --- Transport-Tab
-TransportTab(tab_parent, komponenten_mit_typ_transport)
+        # --- Tabs
+        self.erstelle_tabs()
+        
+        self.Tab_parent.pack(expand=1, fill='both')
+        fenster.mainloop()
+        
 
-# --- Roboter-Tab
-RoboterTab(tab_parent, komponenten_mit_typ_roboter)
+    def erstelle_tabs(self):
+        FeederTab(self)
+        TransportTab(self)
+        RoboterTab(self)
+        MaschineTab(self)
 
 
-tab_parent.pack(expand=1, fill='both')
-fenster.mainloop()
+    def platziere_widget(self, widget, width=None):
+        if width:
+            widget.config(width=width)
+        widget.pack(side='left', padx=(0, 10))
+    
+    
+    def update_datenbank(self, name, typ, funktion, info):
+        db = Datenbank(self.DB_PFAD)
+        parameter = (name, typ, funktion, info)
+        db.replace_query(self.DB_TABELLE, parameter)
+
+if __name__ == "__main__":
+    Steuerung()
