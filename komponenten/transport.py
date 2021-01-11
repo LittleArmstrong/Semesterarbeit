@@ -8,8 +8,8 @@ import konstanten
 class Transport():
     def __init__(self, vcscript):
         # Konstanten
-        self.DATENBANK_PFAD = konstanten.PFAD_SIGNALE_VIRTUELL
-        self.DATENBANK_TABELLE = konstanten.TABELLE_SIGNALE
+        self.DB_PFAD = konstanten.PFAD_SIGNALE_VIRTUELL
+        self.DB_TABELLE = konstanten.TABELLE_SIGNALE
         self.TYP = 'Transport'
 
         # Referenz zur Anwendung selbst
@@ -21,6 +21,9 @@ class Transport():
         # Komponenten-Eigenschaften
         self.Name = self.Komponente.Name
         self.Position = self.Komponente.PositionMatrix
+
+        # Notwendige Behaviour. Muss vom Nutzer sichergestellt werden
+        #self.Path = self.ermittle_pfad(vcscript)
 
         # Behaviours der Komponente
         self.Komponente_signal = self.Komponente.findBehaviour('SensorSignal') or self.Komponente.findBehaviour('ComponentSignal')
@@ -59,33 +62,7 @@ class Transport():
         self.Creator.getProperty('Limit').Value = 0
         self.Path.getProperty('RetainOffset').Value = False
         self.Komponente.getProperty('Schnittstelle::Typ').Value = self.TYP
-
-        
-
-    def OnStart(self):
-        # Reset Signale
-        self.Signal_real = 0
-        self.Signal_virtuell = 0
-        self.Umleiten_zu = None
-        self.Umleiten_zu_Path = None
-        self.Umleiten_zu_Position = None
-
-        # Lege fest, ob virtuelle oder reale Anlage, falls nicht schon festgelegt
-        if self.Anlage != self.Komponente_schnittstelle_anlage.Value and not self.Anlage:
-            self.Anlage = self.Komponente_schnittstelle_anlage.Value 
-        
-        # Beim gebogenem Rollband wird die Sensorposition aus irgendeinem Grund resettet, deswegen wird er hier neu zugewiesen
-        if not self.Sensor.Frame:
-            frame = self.Komponente.findFeature('frame_2') or self.Komponente.findFeature('Mid')
-            self.Sensor.Frame = frame
-        
-        # Lege Produkt für alle verbundene Komponenten fest
-        if self.Vorheriges_produkt != self.Produkt.Value:
-            self.Vorheriges_produkt = self.Produkt.Value
-            self.set_part(self.Produkt, self.Creator)
-            self.update_eigenschaft_verbundener_komponenten(self.Produkt, 'InInterface')
-            self.update_eigenschaft_verbundener_komponenten(self.Produkt, 'OutInterface')
-
+    
     def OnSignal(self, signal):
         if signal == self.Update_signal:
             update = literal_eval(signal.Value)
@@ -123,12 +100,40 @@ class Transport():
                 self.Zuletzt_erstellte_komponente = self.erstelle_komponente_am_sensor()
                 self.Signal_real = 0
 
+        
+
+    def OnStart(self):
+        # Reset Signale
+        self.Signal_real = 0
+        self.Signal_virtuell = 0
+        self.Umleiten_zu = None
+        self.Umleiten_zu_Path = None
+        self.Umleiten_zu_Position = None
+
+        # Lege fest, ob virtuelle oder reale Anlage, falls nicht schon festgelegt
+        if self.Anlage != self.Komponente_schnittstelle_anlage.Value and not self.Anlage:
+            self.Anlage = self.Komponente_schnittstelle_anlage.Value 
+        
+        # Beim gebogenem Rollband wird die Sensorposition aus irgendeinem Grund resettet, deswegen wird er hier neu zugewiesen
+        if not self.Sensor.Frame:
+            frame = self.Komponente.findFeature('frame_2') or self.Komponente.findFeature('Mid')
+            self.Sensor.Frame = frame
+        
+        # Lege Produkt für alle verbundene Komponenten fest
+        if self.Vorheriges_produkt != self.Produkt.Value:
+            self.Vorheriges_produkt = self.Produkt.Value
+            self.set_part(self.Produkt, self.Creator)
+            self.update_eigenschaft_verbundener_komponenten(self.Produkt, 'InInterface')
+            self.update_eigenschaft_verbundener_komponenten(self.Produkt, 'OutInterface')
+
+    
+
     def OnRun(self):
         pass
 
     def konfiguriere_komponente(self, vcscript):
         # Referenz zum Pythonscript
-        script = self.Komponente.findBehaviour('PythonScript')
+        script = self.Komponente.findBehaviour('Script')
 
         # Behaviours
         if not self.Creator:
@@ -187,9 +192,9 @@ class Transport():
                 komponente_vor_sensor.delete()
 
     def update_datenbank_virtuell(self, funktion, wert):
-        db = Datenbank(self.DATENBANK_PFAD)
+        db = Datenbank(self.DB_PFAD)
         parameter = (self.Name, self.TYP, 'signal', '1')
-        db.replace_query(self.DATENBANK_TABELLE, parameter)
+        db.replace_query(self.DB_TABELLE, parameter)
 
     def set_part(self, produkt, creator):
         if produkt.Value != creator.Part:

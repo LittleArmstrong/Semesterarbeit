@@ -16,6 +16,9 @@ class TransportTab():
         self.Transport_komponenten = sorted([name for name, typ in self.Steuerung.Komponenten if typ == self.TYP])
         self.Vcmd = (self.Tab_transport.register(self.OnValidierung), '%P')
 
+        if not self.Transport_komponenten:
+            self.Transport_komponenten = ['None']
+
         steuerung.Tab_parent.add(self.Tab_transport, text='Transport')
         self.transportauswahl()
         self.funktion_komponente_umleiten()

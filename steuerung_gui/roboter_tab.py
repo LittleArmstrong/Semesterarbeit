@@ -16,6 +16,9 @@ class RoboterTab:
         self.Roboter_auswahl = tk.StringVar()
         self.Vcmd = (self.Tab_roboter.register(self.OnValidierung), '%P')
 
+        if not self.Roboter_komponenten:
+            self.Roboter_komponenten = ['None']
+
         steuerung.Tab_parent.add(self.Tab_roboter, text = self.TYP)
         self.roboterauswahl()
         self.funktion_automatisch_greifen_platzieren()
@@ -36,8 +39,8 @@ class RoboterTab:
         greifstelle = tk.StringVar()
         platzierstelle = tk.StringVar() 
         
-        greifstelle.set('0')
-        platzierstelle.set('0')
+        greifstelle.set('1')
+        platzierstelle.set('1')
 
         frame_agp = tk.Frame(self.Tab_roboter)
         frame_agp.grid(row=1, padx=(10,0), pady=(5,5), sticky='W')
@@ -46,11 +49,11 @@ class RoboterTab:
         button_automatisch = tk.Button(frame_agp, text='Automatisch', takefocus=0, command=cmd_automatisch)
 
         entry_greifstelle = tk.Entry(frame_agp, takefocus=0, textvariable=greifstelle, validate='key', validatecommand=self.Vcmd)
-        cmd_greifen = lambda: self.Steuerung.update_datenbank(self.Roboter_auswahl.get(), self.TYP, 'greifen', greifstelle.get() or '1')
+        cmd_greifen = lambda: self.Steuerung.update_datenbank(self.Roboter_auswahl.get(), self.TYP, 'greifen', greifstelle.get() or '0')
         button_greifen = tk.Button(frame_agp, text='Greifen', takefocus=0, command=cmd_greifen)
 
         entry_platzierstelle = tk.Entry(frame_agp, takefocus=0, textvariable=platzierstelle, validate='key', validatecommand=self.Vcmd)
-        cmd_platzieren = lambda: self.Steuerung.update_datenbank(self.Roboter_auswahl.get(), self.TYP, 'platzieren', platzierstelle.get() or '1')
+        cmd_platzieren = lambda: self.Steuerung.update_datenbank(self.Roboter_auswahl.get(), self.TYP, 'platzieren', platzierstelle.get() or '0')
         button_platzieren = tk.Button(frame_agp, text='Platzieren', takefocus=0, command=cmd_platzieren)
 
         widgets_apg = ((button_automatisch, 12), (entry_greifstelle, 3), (button_greifen, 12),
@@ -61,7 +64,7 @@ class RoboterTab:
     
     def cmd_bewegen(self, name, relativ, gelenk_werte):
         funktion = 'bewegeGelenk' + '+' * relativ
-        info = repr({'G' + str(i): wert for i, wert in enumerate(gelenk_werte, 1)})
+        info = repr(gelenk_werte)
         self.Steuerung.update_datenbank(name, self.TYP, funktion, info)
 
 

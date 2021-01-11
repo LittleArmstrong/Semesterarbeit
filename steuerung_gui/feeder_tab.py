@@ -15,6 +15,9 @@ class FeederTab:
         self.Feeder_auswahl = tk.StringVar()
         self.Vcmd = (self.Tab_feeder.register(self.OnValidierung), '%P')
 
+        if not self.Feeder_komponenten:
+            self.Feeder_komponenten = ['None']
+
         steuerung.Tab_parent.add(self.Tab_feeder, text = self.TYP)
         self.feederauswahl()
         self.funktion_erstelle()
