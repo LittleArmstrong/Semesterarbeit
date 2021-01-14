@@ -1,230 +1,186 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 from .datenbank import Datenbank
 from ast import literal_eval
 import konstanten
 
 class Transport():
+    # __init__ und exklusive Funktionen
     def __init__(self, vcscript):
         # Konstanten
         self.DB_PFAD = konstanten.PFAD_SIGNALE_VIRTUELL
         self.DB_TABELLE = konstanten.TABELLE_SIGNALE
         self.TYP = 'Transport'
-
         # Referenz zur Anwendung selbst
         self.App = vcscript.getApplication()
-
         # Referenz zur Komponente
         self.Komponente = vcscript.getComponent()
-
-        # Komponenten-Eigenschaften
-        self.Name = self.Komponente.Name
-        self.Position = self.Komponente.PositionMatrix
-
-        # Notwendige Behaviour. Muss vom Nutzer sichergestellt werden
-        #self.Path = self.ermittle_pfad(vcscript)
-
         # Behaviours der Komponente
-        self.Komponente_signal = self.Komponente.findBehaviour('SensorSignal') or self.Komponente.findBehaviour('ComponentSignal')
-        self.Update_signal = self.Komponente.findBehaviour('UpdateSignal')
         self.Creator = self.Komponente.findBehaviour('ComponentCreator')
-        self.Container = self.Komponente.findBehaviour('ComponentContainer')
-        self.Path = self.Komponente.findBehaviour('One-WayPath__HIDE__') or self.Komponente.findBehaviour('Path__HIDE__')
-        self.Interface_in = self.Komponente.findBehaviour('InInterface')
-        self.Interface_out = self.Komponente.findBehaviour('OutInterface')
-        self.Sensor = self.Komponente.findBehaviour('ComponentPathSensor')
-
-        # Eigenschaften der Komponente
-        self.Produkt = self.Komponente.getProperty('Schnittstelle::Produkt')
-    
-        # Erstelle Behaviours, Eigenschaften und Verbindungen, wenn notwendig
+        # - Der erste gefundene Pfad wird gewählt, deshalb sollte der gewünschte Pfad and erster Stelle stehen
+        # - oder nach einem bestimmten Pfad gesucht werden
+        self.Path = self.Komponente.findBehavioursByType(vcscript.VC_ONEWAYPATH)[0]
+        # Behaviours abh. vom Pfad
+        # - Der erste gefunde Sensor auf dem Pfad wird gewählt -> Sollte ein ComponentPathSensor sein!
+        self.Sensor = self.Path.Sensors[0]
+        # Behaviour abh. vom Sensor
+        self.Komp_signal =  self.Sensor.ComponentSignal
+        # Erstelle Behaviours, Eigenschaften und Verbindungen, falls notwendig
         self.konfiguriere_komponente(vcscript)
-
-        # Objekt-Eigenschaften
-        self.Anlage = None
-        self.Zuletzt_erstellte_komponente = 0
-        self.Aktuelle_Komponente = None
-        self.Path_position_anfang = self.Path.Path[0].FramePositionMatrix.P
-        self.Sensor_position = self.Sensor.Frame.FramePositionMatrix.P
-        self.Sensor_position_welt = self.Position * self.Sensor.Frame.FramePositionMatrix
-        self.Sensor_path_distanz = (self.Sensor_position - self.Path_position_anfang).length()
-        self.Vorheriges_produkt = self.Produkt.Value
-        self.Umleiten_zu = None
-        self.Umleiten_zu_Position = None
-        self.Umleiten_zu_Path = None
-
-        # Referenz zu anderen Komponenten, Behaviours oder Eigenschaften
-        self.Komponente_schnittstelle_anlage = self.App.findComponent('Schnittstelle').getProperty('Schnittstelle::Anlage')
-
-        # Wertzuweisungen
-        self.Creator.getProperty('Interval').Value = 0
-        self.Creator.getProperty('Limit').Value = 0
-        self.Path.getProperty('RetainOffset').Value = False
-        self.Komponente.getProperty('Schnittstelle::Typ').Value = self.TYP
-    
-    def OnSignal(self, signal):
-        if signal == self.Update_signal:
-            update = literal_eval(signal.Value)
-            if update['Funktion'] == 'signal' and update['Info']:
-                self.Signal_real = update['Info']
-            elif update['Funktion'] == 'umleiten':
-                if not self.Umleiten_zu or self.Umleiten_zu != update['Info']:
-                    self.Umleiten_zu = update['Info']
-                elif self.Umleiten_zu == update['Info']:
-                    self.Umleiten_zu = None
-                    self.Umleiten_zu_Position = None
-                    self.Umleiten_zu_Path = None
-
-        if signal == self.Komponente_signal:
-            if self.Anlage == 'real':
-                if signal.Value:
-                    if self.Umleiten_zu:
-                        self.umleiten(komponente = signal.Value)
-                    else:
-                        self.update_datenbank_virtuell('signal', '1')
-            elif self.Anlage == 'virtuell':
-                if signal.Value:
-                    self.Signal_virtuell = 1
-                    self.Aktuelle_Komponente = signal.Value
-                else:
-                    self.Signal_virtuell = 0
-                    self.Aktuelle_Komponente = None
-
-        if self.Aktuelle_Komponente != self.Zuletzt_erstellte_komponente and self.Anlage == 'virtuell':
-            if self.Signal_virtuell and not self.Signal_real:
-                self.Aktuelle_Komponente.delete()
-                self.Signal_virtuell = 0
-            elif not self.Signal_virtuell and self.Signal_real:
-                self.entferne_erste_komponente_vor_sensor()
-                self.Zuletzt_erstellte_komponente = self.erstelle_komponente_am_sensor()
-                self.Signal_real = 0
-
         
-
-    def OnStart(self):
-        # Reset Signale
-        self.Signal_real = 0
-        self.Signal_virtuell = 0
-        self.Umleiten_zu = None
-        self.Umleiten_zu_Path = None
-        self.Umleiten_zu_Position = None
-
-        # Lege fest, ob virtuelle oder reale Anlage, falls nicht schon festgelegt
-        if self.Anlage != self.Komponente_schnittstelle_anlage.Value and not self.Anlage:
-            self.Anlage = self.Komponente_schnittstelle_anlage.Value 
-        
-        # Beim gebogenem Rollband wird die Sensorposition aus irgendeinem Grund resettet, deswegen wird er hier neu zugewiesen
-        if not self.Sensor.Frame:
-            frame = self.Komponente.findFeature('frame_2') or self.Komponente.findFeature('Mid')
-            self.Sensor.Frame = frame
-        
-        # Lege Produkt für alle verbundene Komponenten fest
-        if self.Vorheriges_produkt != self.Produkt.Value:
-            self.Vorheriges_produkt = self.Produkt.Value
-            self.set_part(self.Produkt, self.Creator)
-            self.update_eigenschaft_verbundener_komponenten(self.Produkt, 'InInterface')
-            self.update_eigenschaft_verbundener_komponenten(self.Produkt, 'OutInterface')
-
-    
-
-    def OnRun(self):
-        pass
-
-    def konfiguriere_komponente(self, vcscript):
+    def konfiguriere_komponente(self, vcscript):    
         # Referenz zum Pythonscript
         script = self.Komponente.findBehaviour('Script')
-
         # Behaviours
+        # - ComponentCreator, zum erstellen von Produkten (Für virtuelle Anlage oder Umleiten wichtig)
         if not self.Creator:
             self.Creator = self.Komponente.createBehaviour(vcscript.VC_COMPONENTCREATOR, 'ComponentCreator')
-
-        if not self.Container:
-            self.Container = self.Komponente.createBehaviour(vcscript.VC_COMPONENTCONTAINER, 'ComponentContainer')
-            # Verbinde Container mit Creator
-            container_input = self.Container.getConnector('Input')
-            creator_output = self.Creator.getConnector('Output')
-            container_input.connect(creator_output)
-            
-        if not self.Update_signal:
-            self.Update_signal = self.Komponente.createBehaviour(vcscript.VC_STRINGSIGNAL, 'UpdateSignal')
-            self.Update_signal.Connections = [script]
-        
-        if not self.Komponente_signal:
-            self.Komponente_signal = self.Komponente.createBehaviour(vcscript.VC_COMPONENTSIGNAL, 'SensorSignal')
-            self.Komponente_signal.Connections = [script]
-            self.Sensor.ComponentSignal = self.Komponente_signal
-
+        # - ComponentContainer, zur temporären Aufbewahrung der Produkte, damit denen eine Position auf dem Pfad zugewiesen werden kann
+        if not self.Komponente.findBehaviour('ComponentContainer'):
+            container = self.Komponente.createBehaviour(vcscript.VC_COMPONENTCONTAINER, 'ComponentContainer')
+            # Verbinde Creator-Output mit Container-Input, damit die erstellten Produkte direkt im Container landen
+            self.Creator.getConnector('Output').connect(container.getConnector('Input'))
+        # - Sensor: existiert keins, dann wird eins erstellt und dem Pfad zugewiesen
+        if not self.Sensor:
+            self.Sensor = self.Komponente.createBehaviour(vcscript.VC_COMPONENTPATHSENSOR, 'ComponentPathSensor')
+            self.Path.Sensors[0] = self.Sensor
+        # -- Sensorposition (Pfadmitte) festlegen, falls nicht gegeben
+        if not self.Sensor.Frame:
+            index_frame = int(len(self.Path.Path)/2)
+            frame = self.Path.Path[index_frame]
+            self.Sensor.Frame = frame
+        # - Komponentensignal: zum signalisieren von Komponenten durch Sensor
+        if not self.Komp_signal:
+            self.Komp_signal = self.Komponente.createBehaviour(vcscript.VC_COMPONENTSIGNAL, 'ComponentSignal')
+            self.Sensor.ComponentSignal = self.Komp_signal
+        # -- Verbinde Komponentensignal mit diesem Script
+        if script not in self.Komp_signal.Connections:
+            self.Komp_signal.Connections += [script]
+        # - UpdateSignal + Verbindung zum Script
+        if not self.Komponente.findBehaviour('UpdateSignal'):
+            update = self.Komponente.createBehaviour(vcscript.VC_STRINGSIGNAL, 'Update')
+            update.Connections = [script]
         # Eigenschaften
-        if not self.Produkt:
-            self.Produkt = self.Komponente.createProperty(vcscript.VC_STRING, 'Schnittstelle::Produkt')
-
-        # Eigenschaften ohne Referenz, nur zur Wertzuweisung
+        # - Typ
         if not self.Komponente.getProperty('Schnittstelle::Typ'):
             typ = self.Komponente.createProperty(vcscript.VC_STRING, 'Schnittstelle::Typ')
             typ.Value = self.TYP
-            
-        # Verbindungen zwischen Behaviours
-        verbindungen = self.Komponente_signal.Connections
-        if not script in verbindungen:
-            verbindungen += [script]
-            self.Komponente_signal.Connections = verbindungen
 
-        if not self.Sensor.Frame:
-            frame = self.Komponente.findFeature('Mid') or self.Komponente.findFeature('frame_2')
-            self.Sensor.Frame = frame
+    # OnStart-Event
+    def OnStart(self):
+        # Variablen zur Bestimmung der Sensorposition
+        path_anfang = self.Path.Path[0].FramePositionMatrix.P
+        sensor_position = self.Sensor.Frame.FramePositionMatrix.P
+        komp_position = self.Komponente.PositionMatrix
+        # Objekt-Eigenschaften
+        self.Anlage = self.App.findComponent('Schnittstelle').getProperty('Schnittstelle::Anlage').Value
+        self.Erstellte_komp = None
+        self.Sensor_path_distanz = (sensor_position - path_anfang).length()
+        self.Sensor_weltposition = komp_position * sensor_position
+        self.Uri = None 
+        self.Umleiten = None
+        # Reset ComponentCreator, damit keine Produkte von selbst hergestellt werden
+        self.Creator.Interval = 0
+        self.Creator.Limit = 0
+        # Beim gebogenem Rollband wird die Sensorposition aus irgendeinem Grund resettet, deswegen wird er hier neu zugewiesen
+        # if not self.Sensor.Frame:
+            # index_frame = int(len(self.Path.Path)/2)
+            # frame = self.Path.Path[index_frame]
+            # self.Sensor.Frame = frame
 
-    def erstelle_komponente_am_sensor(self):
-        erstellte_komponente = self.Creator.create()
-        erstellte_komponente.PositionMatrix = self.Sensor_position_welt
-        self.Path.grab(erstellte_komponente)
-        return erstellte_komponente
+    # OnSignal-Event und exklusive Funktionen
+    def OnSignal(self, signal):
+        # Signale unterscheiden sich je nachdem, ob es sich um eine reale oder virtuelle Anlage handelt
+        if self.Anlage == 'virtuell':
+            # UpdateSignal ist ein Stringsignal. Gibt an, dass eine bestimmte Funktion ausgeführt werden soll. Enthält ggf. extra Info.
+            if signal.Name == 'UpdateSignal':
+                # Zu erfüllende Funktion ggf. mit extra Info
+                update = literal_eval(signal.Value)
+                if update['Funktion'] == 'signal':
+                    # Erstelle Komponente, falls keine vorhanden und entferne nächste Komponente vor dem Sensor
+                    self.vergleiche_real(update['Info'])
+            # KompSignal signalisert Komponenten auf dem Pfad/Sensor
+            elif signal.Name == 'ComponentSignal' and signal.Value:
+                # Entferne Komponente, falls nicht selbst erstellt
+                if signal.Value != self.Erstellte_komp:
+                    signal.Value.delete()
+        elif self.Anlage == 'real':
+            if signal.Name == 'UpdateSignal':
+                update = literal_eval(signal.Value)
+                if update['Funktion'] == 'umleiten':
+                    # Untersucht, ob umgeleitet werden soll und wohin und speichert die Info
+                    self.update_umleite(update['Info'])
+                elif update['Funktion'] == 'erstelle':
+                    # Erstellt Komponente
+                    self.erstelle_komponente()
+            elif signal.Name == 'ComponentSignal' and signal.Value:
+                # Falls umgeleitet werden soll, entferne Komp und erstelle neue am jeweiligen Fließband
+                if self.Umleiten:
+                    self.umleite_komp(signal.Value)
+                # Wenn nicht, dann sende ein Signal an die virtuelle Anlage, dass ein Produkt hier ist
+                else:
+                    self.update_db('signal', signal.Value.Uri)
 
-    def entferne_erste_komponente_vor_sensor(self):
-        komponenten = self.Path.Components
-        if komponenten:
-            komponenten_path_distanz = [(komponente.PositionMatrix.P - self.Path_position_anfang).length() for komponente in komponenten]
-            komponenten_sensor_distanz = [self.Sensor_path_distanz - komponente for komponente in komponenten_path_distanz]
-            komponenten_distanz_vor_sensor = [distanz for distanz in komponenten_sensor_distanz if distanz > 0]
-            if komponenten_distanz_vor_sensor:
-                index_erste_komponente_vor_sensor = komponenten_sensor_distanz.index(min(komponenten_distanz_vor_sensor))
-                komponente_vor_sensor = komponenten[index_erste_komponente_vor_sensor]
-                komponente_vor_sensor.delete()
+    def entferne_komponente(self):
+        # Entferne nächste Komponente vor Sensor, falls existiert
+        komps = self.Path.Components
+        if not komps:
+            return
+        komps_distanz = [self.Sensor_path_distanz - komp.getPathDistance() for komp in komps]
+        pos_distanz = [dist for dist in komps_distanz if dist>0]
+        index = komps_distanz.index(min(pos_distanz))
+        komp = komps[index]
+        if not komp:
+            return
+        komp.delete()
 
-    def update_datenbank_virtuell(self, funktion, wert):
-        db = Datenbank(self.DB_PFAD)
-        parameter = (self.Name, self.TYP, 'signal', '1')
-        db.replace_query(self.DB_TABELLE, parameter)
+    def erstelle_komponente(self):
+        # Erstelle Komponente am Sensor
+        komp = self.Creator.create()
+        komp.PositionMatrix = self.Sensor_weltposition
+        self.Path.grab(komp)
+        return komp
 
-    def set_part(self, produkt, creator):
-        if produkt.Value != creator.Part:
-            produkt = self.App.findComponent(produkt.Value)
-            uri = produkt.Uri
-            creator.Part = uri
-
-    def update_eigenschaft_verbundener_komponenten(self, eigenschaft, interface):
-        komponente = self.Komponente.findBehaviour(interface).ConnectedComponent
-        eigenschaft_name = eigenschaft.Name
-        eigenschaft_wert = eigenschaft.Value
-        while komponente:
-            eigenschaft = komponente.getProperty(eigenschaft_name)
-            if eigenschaft and eigenschaft.Value != eigenschaft_wert:
-                eigenschaft.Value = eigenschaft_wert
-            else:
-                break
-            komponente = komponente.findBehaviour(interface).ConnectedComponent
+    def umleite_komp(self, komp):
+        # Sende ein Signal zum Fließband, zu der umgeleitet werden. Erstelle dort Komponente und entferne hier Komponente
+        info = repr({'Funktion':'erstelle', 'Info:': komp.Uri})
+        self.Umleiten.signal(info)
+        komp.delete()
     
-    def umleiten(self, komponente):
-        komponente.delete()
-        if not self.Umleiten_zu_Path or not self.Umleiten_zu_Position:
-            ziel_komponente = self.App.findComponent(self.Umleiten_zu)
-            ziel_komponente_sensor = ziel_komponente.findBehaviour('ComponentPathSensor')
-            self.Umleiten_zu_Position = ziel_komponente.PositionMatrix * ziel_komponente_sensor.Frame.FramePositionMatrix
-            self.Umleiten_zu_Path = ziel_komponente.findBehaviour('One-WayPath__HIDE__') or ziel_komponente.findBehaviour('Path__HIDE__')
+    def update_db(self, funktion, wert):
+        # Aktualisiere die Datenbank. Signale gelangen so zur virtuellen Anlage.
+        db = Datenbank(self.DB_PFAD)
+        parameter = (self.Komponente.Name, self.TYP, funktion, wert)
+        db.replace_query(self.DB_TABELLE, parameter)
+    
+    def update_umleite(self, zu_komp):
+        # Lege fest ob umgeleitet werden soll oder nicht und wohin und speichere die Info
+        update = self.App.findComponent(zu_komp).findBehaviour('Update')
+        if update != self.Umleiten:
+            self.Umleiten = update
+        else:
+            self.Umleiten = None
+        
+    def vergleiche_real(self, uri):
+        # Erhalte Uri des Produkts aus der realen Anlage, damit dieser in der virtuellen Anlage hergestellt werden kann
+        if self.Uri != uri:
+            self.Uri = uri
+            self.Creator.Part = self.Uri
+        # Erstelle Produkt, falls bei der virtuellen Anlage der Sensor nicht aktiviert wurde und entferne nächste Komp zum Sensor
+        if not self.Komp_signal.Value:
+            self.entferne_komponente()
+            self.Erstellte_komponente = self.erstelle_komponente()
+    
+    def OnRun(self):
+        pass
 
-        erstellte_komponente = self.Creator.create()
-        erstellte_komponente.PositionMatrix = self.Umleiten_zu_Position
-        self.Umleiten_zu_Path.grab(erstellte_komponente)
+    
+
+
+
+
+
+
 
         
 
