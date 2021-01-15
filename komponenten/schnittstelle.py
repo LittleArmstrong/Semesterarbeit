@@ -56,10 +56,16 @@ class Schnittstelle():
     # OnStart-Event und exklusive Funktionen
     def OnStart(self):
         # Eigenschaften des Objekts  
+        self.Alle_komponenten = {komponente.Name : komponente for komponente in self.App.Components}
         # - Gibt an, ob es sich hier um eine reale oder virtuelle Anlage handelt
-        self.Anlage = self.Komponente.getProperty('Schnittstelle::Anlage').Value
+        anlage = self.Komponente.getProperty('Schnittstelle::Anlage')
+        if anlage:
+            self.Anlage = anlage.Value
+        else:
+            anlage.Value = 'real'
+            self.Anlage = 'real'
+        # Lösche alle Einträge in den Datenbanken und aktualisiere die Komponenten-Datenbank
         if self.Anlage == 'real':
-            self.Alle_komponenten = {komponente.Name : komponente for komponente in self.App.Components}
             self.reset_alle_datenbanken()
             self.update_komponenten_datenbank()
 
@@ -101,10 +107,10 @@ class Schnittstelle():
     
     def ermittle_anlage(self):
         # Delay-Zeiten wurden willkürlich gewählt, aber die der virtuellen sollte kleiner als die der realen sein
-        if self.Anlage == 'real':
-            db = Datenbank(self.PFAD_DATENBANK_REAL)
-            delay_zeit = 0.4
-        elif self.Anlage == 'virtuell':
+        # Falls nicht virtuell, wird automatisch real angenommen
+        db = Datenbank(self.PFAD_DATENBANK_REAL)
+        delay_zeit = 0.4
+        if self.Anlage == 'virtuell':
             db = Datenbank(self.PFAD_DATENBANK_VIRTUELL)
             delay_zeit = 0.2
         return db, delay_zeit
