@@ -60,6 +60,7 @@ class Feeder():
         # Objekt-Eigenschaften
         self.Intervall = 0
         self.Position = welt_pos
+        self.Update_produkt = None
         # - Path des Fließbandes
         self.Path = self.Komponente.findBehaviour('ConveyorInterface').ConnectedComponent.findBehavioursByType(self.Vcscript.VC_ONEWAYPATH)[0]
         # Reset Creator, damit keine Komponenten erstellt werden

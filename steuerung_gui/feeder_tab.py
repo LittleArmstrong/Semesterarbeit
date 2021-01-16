@@ -40,23 +40,20 @@ class FeederTab:
 
         cmd_erstelle = lambda: self.Steuerung.update_datenbank(self.Feeder_auswahl.get(), self.TYP, 'erstelle', '')
         button_erstelle = tk.Button(frame_erstelle, text='Erstellen', command= cmd_erstelle)
-        
-        widget = button_erstelle
-        breite = 12
-        self.Steuerung.platziere_widget(widget, breite)
+
+        self.Steuerung.platziere_widget(widget=button_erstelle, breite=12)
 
 
     def funktion_intervall(self):
         sofort = tk.IntVar()
-        intervall = tk.StringVar()
-
         sofort.set(1)
+        intervall = tk.StringVar()
         intervall.set('0')
-
+        
         frame_intervall = tk.Frame(self.Tab_feeder)
         frame_intervall.grid(row=2, padx=(10,0), pady=(5,5), sticky='W')
 
-        entry_intervall = tk.Entry(frame_intervall, text='0', textvariable=intervall, validate='key', validatecommand=self.Vcmd)
+        entry_intervall = tk.Entry(frame_intervall, textvariable=intervall, validate='key', validatecommand=self.Vcmd)
         checkbox_sofort = tk.Checkbutton(frame_intervall, text='Sofort', variable=sofort)
 
         cmd_intervall = lambda: self.cmd_funktion_intervall(sofort.get(), self.Feeder_auswahl.get(), intervall.get())

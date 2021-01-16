@@ -51,19 +51,16 @@ class Schnittstelle():
     def konfiguriere_komponente(self, vcscript):
         # Eigenschaft
         if not self.Komponente.getProperty('Schnittstelle::Anlage'):
-            self.Anlage = self.Komponente.createProperty(vcscript.VC_STRING, 'Schnittstelle::Anlage')
+            self.Anlage = self.Komponente.createProperty(vcscript.VC_STRING, 'Schnittstelle::Anlage', vcscript.VC_PROPERTY_STEP)
+            self.Anlage.StepValues = ['real', 'virtuell']
+            self.Anlage.Value = 'real'
 
     # OnStart-Event und exklusive Funktionen
     def OnStart(self):
         # Eigenschaften des Objekts  
         self.Alle_komponenten = {komponente.Name : komponente for komponente in self.App.Components}
         # - Gibt an, ob es sich hier um eine reale oder virtuelle Anlage handelt
-        anlage = self.Komponente.getProperty('Schnittstelle::Anlage')
-        if anlage:
-            self.Anlage = anlage.Value
-        else:
-            anlage.Value = 'real'
-            self.Anlage = 'real'
+        self.Anlage = self.Komponente.getProperty('Schnittstelle::Anlage').Value
         # Lösche alle Einträge in den Datenbanken und aktualisiere die Komponenten-Datenbank
         if self.Anlage == 'real':
             self.reset_alle_datenbanken()

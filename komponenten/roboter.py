@@ -12,9 +12,11 @@ class Roboter():
         # Refernz zur Applikation und Komponente
         self.App = vcscript.getApplication()
         self.Komponente = vcscript.getComponent()
-        # Referenz zu Modulen
+        # Referenz zu Module
         self.vcrobot = vcrobot
         self.vcscript = vcscript
+        # Eigenschaften
+        self.Produkte = self.Komponente.getProperty('Schnittstelle::Produkte')
         # Importierte Funktionen 
         self.resume = vcscript.resumeRun
         self.suspend = vcscript.suspendRun
@@ -34,6 +36,10 @@ class Roboter():
         if not self.Komponente.getProperty('Schnittstelle::Typ'):
             typ = self.Komponente.createProperty(vcscript.VC_STRING, 'Schnittstelle::Typ')
             typ.Value = self.TYP
+        # - Produkte
+        if not self.Produkte:
+            self.Produkte = self.Komponente.createProperty(vcscript.VC_STRING, 'Schnittstelle::Produkte')
+
     
     # OnStart-Event und alle exklusiven Funktionen
     def OnStart(self):
@@ -43,7 +49,8 @@ class Roboter():
         self.Input = self.Roboter.SignalMapIn
         self.Input.OnSignalTrigger = self.verwalte_signale
         # Objekt-Eigenschaften deklariert und initialisiert
-        self.Automatisch = True        
+        self.Anlage = self.App.findComponent('Schnittstelle').getProperty('Schnittstelle::Anlage').Value
+        self.Automatisch = True
         self.Gelenkwerte = None
         self.Komponente_im_greifer = None
         self.Manuell_greifen = 0
@@ -54,6 +61,7 @@ class Roboter():
         self.ermittle_stationen()
         # Range-Objekt, um Route rückwärts zu betrachten und um Stationen vorher/nachher referenzieren zu können
         self.Durchlauf = range(len(self.Stationen) -2, -1, -1)
+
     
     def ermittle_stationen(self):
         # Durchlaufe die Ports (Input) des Roboters
@@ -74,24 +82,38 @@ class Roboter():
                 signal = station.findBehaviour('SensorComponentSignal')
                 iStation = {'Station':station,'Typ': typ, 'Signal':signal}
             self.Stationen.append(iStation)
+            self.update_produkte(station)
+    
+    def update_produkte(self, komp=None):
+            produkte = komp.getProperty('Schnittstelle::Produkte')
+            if produkte and produkte.Value:
+                produkte = [prod.strip() for prod in produkte.Value.split(',')]
+                produkte_aktuell = [prod.strip() for prod in self.Produkte.Value.split(',')]
+                produkte_neu = [prod for prod in produkte if prod not in produkte_aktuell]
+                if produkte_neu:
+                    self.Produkte.Value += ','.join(produkte_neu)
+
         
     # OnSignal-Event mit allen exklusiven Funktionen
     def OnSignal(self, signal):
-        # UpdateSignal ist ein Stringsignal. Gibt an, dass eine bestimmte Funktion aktiviert werden soll. Enthält ggf. extra Info.
-        if signal.Name == 'UpdateSignal':
-            update = literal_eval(signal.Value)
-            # Schalte um zwischen Automatik und Manuell
-            if update['Funktion'] == 'auto':
-                self.Automatisch = not self.Automatisch
-                self.resume()
-            else:
-                self.Automatisch = False
-            # Greife Komponente an gegebener Stelle. Schaltet um auf Manuell
-            if update['Funktion'] == 'greifen' or update['Funktion']=='platzieren':
-                self.update_manuell(update['Funktion'], update['Info'])
-            # Platziere Komponente an gegebener Stelle. Schaltet um auf Manuell
-            elif update['Funktion'] in 'bewegeGelenk+':
-                self.update_gelenkwerte(update)
+        if self.Anlage == 'real':
+            # UpdateSignal ist ein Stringsignal. Gibt an, dass eine bestimmte Funktion aktiviert werden soll. Enthält ggf. extra Info.
+            if signal.Name == 'UpdateSignal':
+                update = literal_eval(signal.Value)
+                # Schalte um zwischen Automatik und Manuell
+                if update['Funktion'] == 'auto':
+                    self.Automatisch = not self.Automatisch
+                    self.resume()
+                else:
+                    self.Automatisch = False
+                # Greife Komponente an gegebener Stelle. Schaltet um auf Manuell
+                if update['Funktion'] == 'greifen' or update['Funktion']=='platzieren':
+                    self.update_manuell(update['Funktion'], update['Info'])
+                # Platziere Komponente an gegebener Stelle. Schaltet um auf Manuell
+                elif update['Funktion'] in 'bewegeGelenk+':
+                    self.update_gelenkwerte(update)
+        elif self.Anlage == 'virtuell':
+            pass
 
     def update_gelenkwerte(self, update):
         # Gibt an, welche Werte die Gelenke einnehmen sollen

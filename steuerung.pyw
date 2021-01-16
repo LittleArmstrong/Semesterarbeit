@@ -41,9 +41,9 @@ class Steuerung:
         MaschineTab(self)
 
 
-    def platziere_widget(self, widget, width=None):
-        if width:
-            widget.config(width=width)
+    def platziere_widget(self, widget, breite=None):
+        if breite:
+            widget.config(width=breite)
         widget.pack(side='left', padx=(0, 10))
     
     
