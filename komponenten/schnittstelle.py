@@ -86,7 +86,7 @@ class Schnittstelle():
 
     # OnRun-Event und exklusive Funktionen    
     def OnRun(self):
-        db, delay_zeit = self.ermittle_anlage()
+        db, delay_zeit = self.check_anlage()
         tabelle = self.TABELLE_DATENBANK_SIGNALE
         # Gehe alle Datenbankzeilen durch
         while True:
@@ -102,14 +102,14 @@ class Schnittstelle():
                 db.replace_query(tabelle, zeile)
             self.delay(delay_zeit)
     
-    def ermittle_anlage(self):
+    def check_anlage(self):
         # Delay-Zeiten wurden willkürlich gewählt, aber die der virtuellen sollte kleiner als die der realen sein
         # Falls nicht virtuell, wird automatisch real angenommen
         db = Datenbank(self.PFAD_DATENBANK_REAL)
-        delay_zeit = 0.4
+        delay_zeit = 0.2
         if self.Anlage == 'virtuell':
             db = Datenbank(self.PFAD_DATENBANK_VIRTUELL)
-            delay_zeit = 0.2
+            delay_zeit = 0.1
         return db, delay_zeit
 
     def reset_zeile(self, liste, zeile):

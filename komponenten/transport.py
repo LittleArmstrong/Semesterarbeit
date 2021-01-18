@@ -8,13 +8,15 @@ import konstanten
 class Transport(Upvia):
     # __init__ und exklusive Funktionen
     def __init__(self, vcscript):
-        super(Transport, self).__init__(self)
+        # Funktionen und Eigenschaften der Oberklasse
+        super(Transport, self).__init__()
         # Konstanten
         self.TYP = 'Transport'
         # Referenz zur Anwendung, Komponente und dem Modul 
         self.App = vcscript.getApplication()
         self.Komponente = vcscript.getComponent()
         self.Vcscript = vcscript
+        
         # Behaviours der Komponente
         self.Container = self.Komponente.findBehaviour('ComponentContainer__HIDE__')
         # - Der erste gefundene Pfad wird gewählt, deshalb sollte der gewünschte Pfad and erster Stelle stehen
@@ -29,8 +31,6 @@ class Transport(Upvia):
         else:
             self.Sensor = None
             self.Komp_signal = None
-        # Eigenschaften der Komponente
-        self.Produkte = self.Komponente.getProperty('Schnittstelle::Produkte')
         # Erstelle Behaviours, Eigenschaften und Verbindungen, falls notwendig
         self.konfiguriere_komponente(vcscript)
         # Importierte Funktionen
@@ -74,26 +74,6 @@ class Transport(Upvia):
         if not self.Komponente.getProperty('Schnittstelle::Typ'):
             typ = self.Komponente.createProperty(vcscript.VC_STRING, 'Schnittstelle::Typ')
             typ.Value = self.TYP
-        # - Produkte, die auf Fließband laufen
-        if not self.Produkte:
-            self.Produkte = self.Komponente.createProperty(vcscript.VC_STRING, 'Schnittstelle::Produkte')
-        self.Produkte.OnChanged = self.synchronisiere_produkte
-        # Ermittle bzw. erstelle ComponentCreator abh. der Produktanzahl
-        self.ermittle_creators()
-    
-    def synchronisiere_produkte(self, prod):
-        # Wird die Eigenschaft Produkte bei einem Förderband verändert, dann auch bei allen verbundenen
-        iface = ['InInterface', 'OutInterface']
-        for i in iface:
-            verbundene_komp = self.Komponente.findBehaviour(i).ConnectedComponent
-            while verbundene_komp:
-                produkte = verbundene_komp.getProperty('Schnittstelle::Produkte')
-                if produkte.Value != prod.Value:
-                    produkte.Value = prod.Value
-                    verbundene_komp = verbundene_komp.findBehaviour(i).ConnectedComponent
-                else:
-                    verbundene_komp = None
-        self.ermittle_creators()
 
     # OnStart-Event
     def OnStart(self):
@@ -102,7 +82,8 @@ class Transport(Upvia):
         # aus irgendeinem Grund ändern !
         self.set_sensor_frame()
         # Objekt-Eigenschaften
-        self.reset_OnStart()
+        # - Methode der Oberklasse
+        self.reset_OnStart(self.App)
         self.Anlage = self.App.findComponent('Schnittstelle').getProperty('Schnittstelle::Anlage').Value
         # - Position und distanz des Sensors. Name wichtig, wird von der Klasse Upvia benutzt
         self.Path_distanz = self.Sensor.Frame.FramePositionMatrix.P.X 
@@ -119,10 +100,10 @@ class Transport(Upvia):
                 update = literal_eval(signal.Value)
                 if update['Funktion'] == 'signal':
                     # Erstelle Komponente, falls keine vorhanden und entferne nächste Komponente vor dem Sensor
-                    self.vergleiche_virtuell(update['Info'])
+                    self.vergleiche_virtuell(update['Info'], self.Path, self.Path_distanz, self.Weltposition)
             # KompSignal signalisert Komponenten auf dem Pfad/Sensor
             elif signal == self.Komp_signal:
-                self.vergleiche_real()
+                self.vergleiche_real(signal)
         elif self.Anlage == 'real':
             if signal.Name == 'UpdateSignal':
                 update = literal_eval(signal.Value)
@@ -132,14 +113,14 @@ class Transport(Upvia):
                 elif update['Funktion'] == 'erstelle':
                     # Erstellt Komponente
                     self.Produktname = update['Info']
-                    self.erstelle_komponente()
+                    self.erstelle_komponente(self.Path, self.Weltposition)
             elif signal == self.Komp_signal and signal.Value:
                 # Falls umgeleitet werden soll, entferne Komp und erstelle neue am jeweiligen Fließband
                 if self.Umleiten:
                     self.umleite_komp(signal.Value)
                 # Wenn nicht, dann sende ein Signal an die virtuelle Anlage, dass ein Produkt hier ist
                 else:
-                    self.update_db('signal', signal.Value.Name)
+                    self.update_db(self.Komponente.Name, self.TYP, 'signal', signal.Value.Name)
 
     def umleite_komp(self, komp):
         # Sende ein Signal zum Fließband, zu der umgeleitet werden. Erstelle dort Komponente und entferne hier Komponente

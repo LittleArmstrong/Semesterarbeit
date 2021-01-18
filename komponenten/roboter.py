@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from .datenbank import Datenbank
+from .upvia import Upvia
 import konstanten
 from ast import literal_eval
 
@@ -17,7 +18,10 @@ class Roboter():
         self.vcscript = vcscript
         # Eigenschaften
         self.Produkte = self.Komponente.getProperty('Schnittstelle::Produkte')
+        # Objekt-Eigenschaften
+        self.Reset_pos = [0,0,90,0,0,0]
         # Importierte Funktionen 
+        self.update_db = Upvia().update_db
         self.resume = vcscript.resumeRun
         self.suspend = vcscript.suspendRun
         # Erstelle Behaviours und Eigenschaften falls notwendig
@@ -36,34 +40,36 @@ class Roboter():
         if not self.Komponente.getProperty('Schnittstelle::Typ'):
             typ = self.Komponente.createProperty(vcscript.VC_STRING, 'Schnittstelle::Typ')
             typ.Value = self.TYP
-        # - Produkte
-        if not self.Produkte:
-            self.Produkte = self.Komponente.createProperty(vcscript.VC_STRING, 'Schnittstelle::Produkte')
-
     
     # OnStart-Event und alle exklusiven Funktionen
     def OnStart(self):
-        # Referenz zum Hilfsobjekt Roboter und den Inputs
-        # Deklaration von Roboter in  __init__ aus irgendeinem Grund nicht möglich
-        self.Roboter = self.vcrobot.getRobot()
-        self.Input = self.Roboter.SignalMapIn
-        self.Input.OnSignalTrigger = self.verwalte_signale
         # Objekt-Eigenschaften deklariert und initialisiert
         self.Anlage = self.App.findComponent('Schnittstelle').getProperty('Schnittstelle::Anlage').Value
-        self.Automatisch = True
+        if self.Anlage == 'real':
+            self.Automatisch = True
+        else:
+            self.Automatisch = False
         self.Gelenkwerte = None
+        self.Greifen = None
         self.Komponente_im_greifer = None
         self.Manuell_greifen = 0
         self.Manuell_platzieren = 0
+        self.Platzieren = None
         self.Relativ = False
         self.Stationen = []
+        # Referenz zum Hilfsobjekt Roboter und den Inputs
+        # Deklaration von Roboter in  __init__ nicht möglich
+        self.Roboter = self.vcrobot.getRobot()
+        self.Input = self.Roboter.SignalMapIn
+        self.Output = self.Roboter.SignalMapOut
+        if self.Anlage == 'real':
+            self.Input.OnSignalTrigger = self.verwalte_signale
         # Bestimme die Stationen die Durchlaufen werden müssen
-        self.ermittle_stationen()
+        self.check_stationen()
         # Range-Objekt, um Route rückwärts zu betrachten und um Stationen vorher/nachher referenzieren zu können
         self.Durchlauf = range(len(self.Stationen) -2, -1, -1)
-
     
-    def ermittle_stationen(self):
+    def check_stationen(self):
         # Durchlaufe die Ports (Input) des Roboters
         ports = self.Input.getAllConnectedPorts()
         for port in ports:
@@ -82,17 +88,6 @@ class Roboter():
                 signal = station.findBehaviour('SensorComponentSignal')
                 iStation = {'Station':station,'Typ': typ, 'Signal':signal}
             self.Stationen.append(iStation)
-            self.update_produkte(station)
-    
-    def update_produkte(self, komp=None):
-            produkte = komp.getProperty('Schnittstelle::Produkte')
-            if produkte and produkte.Value:
-                produkte = [prod.strip() for prod in produkte.Value.split(',')]
-                produkte_aktuell = [prod.strip() for prod in self.Produkte.Value.split(',')]
-                produkte_neu = [prod for prod in produkte if prod not in produkte_aktuell]
-                if produkte_neu:
-                    self.Produkte.Value += ','.join(produkte_neu)
-
         
     # OnSignal-Event mit allen exklusiven Funktionen
     def OnSignal(self, signal):
@@ -101,7 +96,7 @@ class Roboter():
             if signal.Name == 'UpdateSignal':
                 update = literal_eval(signal.Value)
                 # Schalte um zwischen Automatik und Manuell
-                if update['Funktion'] == 'auto':
+                if update['Funktion'] == 'auto' and self.Anlage == 'real':
                     self.Automatisch = not self.Automatisch
                     self.resume()
                 else:
@@ -113,7 +108,14 @@ class Roboter():
                 elif update['Funktion'] in 'bewegeGelenk+':
                     self.update_gelenkwerte(update)
         elif self.Anlage == 'virtuell':
-            pass
+            if signal.Name == 'UpdateSignal':
+                update = literal_eval(signal.Value)
+                if update['Funktion'] == 'greifen':
+                    self.Greifen = literal_eval(update['Info'])
+                    self.resume()
+                elif update['Funktion'] == 'platzieren':
+                    self.Platzieren = literal_eval(update['Info'])
+                    self.resume()
 
     def update_gelenkwerte(self, update):
         # Gibt an, welche Werte die Gelenke einnehmen sollen
@@ -140,35 +142,53 @@ class Roboter():
             # Stoppt das Event. Über resume() wieder gestartet.
             self.suspend()
             # Prüfe, welche Funktion ausgeführt werden soll
-            if self.Automatisch:
-                self.auto_ablauf()
-            if self.Gelenkwerte:
-                self.Roboter.driveJoints(*self.Gelenkwerte)
-                self.Gelenkwerte = None
-            if self.Manuell_greifen:
-                iStation, komp =  self.ermittle_belegung(self.Manuell_greifen-1)
-                self.greife_komponente(iStation, komp)
-            if self.Manuell_platzieren:
-                iStation, komp =  self.ermittle_belegung(self.Manuell_platzieren-1)
-                self.platziere_komponente(iStation, komp)
-            if self.Komponente_im_greifer:
-                self.Manuell_greifen = 0
-            else:
-                self.Manuell_platzieren = 0
-    
+            if self.Anlage == 'real':
+                if self.Automatisch:
+                    self.auto_ablauf()
+                if self.Gelenkwerte:
+                    self.Roboter.driveJoints(*self.Gelenkwerte)
+                    self.Gelenkwerte = None
+                if self.Manuell_greifen:
+                    iStation, komp =  self.check_belegung(self.Manuell_greifen-1)
+                    self.greife_komponente(iStation, komp)
+                if self.Manuell_platzieren:
+                    iStation, komp =  self.check_belegung(self.Manuell_platzieren-1)
+                    self.platziere_komponente(iStation, komp)
+            elif self.Anlage == 'virtuell':
+                if self.Greifen:
+                    #self.Roboter.driveJoints(*self.Greifen)
+                    self.Roboter.jointMoveToPosition(*self.Greifen)
+                    self.Roboter.linearMoveRel(Tx=-200, Tz=200)
+                    self.Output.output(1, True)
+                    self.Roboter.delay(0.1)
+                    self.Roboter.moveAway()
+                    self.Roboter.driveJoints(*self.Reset_pos)
+                    self.Greifen = None
+                elif self.Platzieren:
+                    #self.Roboter.driveJoints(*self.Platzieren)
+                    self.Roboter.jointMoveToPosition(*self.Platzieren)
+                    self.Roboter.linearMoveRel(Tz=200)
+                    self.Output.output(1,False)
+                    self.Roboter.delay(0.1)
+                    self.Roboter.moveAway()
+                    self.Roboter.driveJoints(*self.Reset_pos)
+                    self.Platzieren = None
+
+
     def auto_ablauf(self):
         # Funktion, die für den automatischen Ablaufs des Roboters verantwortlich ist.
         # Prüft aktuelle und nächste Station, ob Komponenten vorhanden ist oder nicht.
         for i in self.Durchlauf:
             if not self.Automatisch:
                 break
-            iStation, komp = self.ermittle_belegung(i)
-            next_iStation, next_komp = self.ermittle_belegung(i+1)
+            iStation, komp = self.check_belegung(i)
+            next_iStation, next_komp = self.check_belegung(i+1)
+            print(i, komp, next_komp)
             if komp and not next_komp:
                 self.greife_komponente(iStation, komp)
                 self.platziere_komponente(next_iStation, next_komp)
     
-    def ermittle_belegung(self, index):
+    def check_belegung(self, index):
         # Funktion, die die Belegung der jeweiligen Maschine prüft, d.h. ob eine Komponente vorhanden ist oder nicht.
         iStation = self.Stationen[index]
         if iStation['Typ'] == 'Maschine':
@@ -183,14 +203,16 @@ class Roboter():
         if komp and not self.Komponente_im_greifer:
             # Je nach Stationstyp sind unterschiedliche Bewegungen notwendig.
             if iStation['Typ'] == 'Transportstelle':
-                self.Roboter.pickMovingPart(komp)
+                #self.Roboter.pickMovingPart(komp)
+                self.zu_transport(komp)
                 self.Komponente_im_greifer = komp
             elif iStation['Typ'] == 'Maschine':
                 if iStation['Offen'].Value:
                     self.zu_maschine(iStation['Station'], komp[0], 'greifen')
                     self.Komponente_im_greifer = komp[0]
+            self.Manuell_greifen = 0
             # Fahre zurück zur neturalen Position.
-            self.Roboter.driveJoints(0,0,90,0,0,0)
+            self.Roboter.driveJoints(*self.Reset_pos)
 
     def platziere_komponente(self, iStation, next_komp):
         # Führt die notwendigen Bewegungen aus, um zur Station zu gelangen und platziert die Komponente.
@@ -198,14 +220,22 @@ class Roboter():
         if self.Komponente_im_greifer and not next_komp:
             # Je nach Stationstyp sind unterschiedliche Bewegungen notwendig.
             if iStation['Typ'] == 'Transportstelle':
-                self.Roboter.place(iStation['Station'])
+                #self.Roboter.place(iStation['Station'])
+                self.zu_transport(self.Komponente_im_greifer, iStation['Station'])
                 self.Komponente_im_greifer = None
             elif iStation['Typ'] == 'Maschine':
                 if iStation['Offen'].Value:
                     self.zu_maschine(iStation['Station'], self.Komponente_im_greifer, 'platzieren')
                     self.Komponente_im_greifer = None
+            self.Manuell_platzieren = 0
             # Fahre zurück zur neturalen Position.
-            self.Roboter.driveJoints(0,0,90,0,0,0)
+            self.Roboter.driveJoints(*self.Reset_pos)
+    
+    def update_virtuelle_gelenkwerte(self):
+        if self.Anlage == 'real':
+            gelenkwerte =[g.CurrentValue for g in self.Roboter.Joints]
+            self.update_db(self.Komponente.Name, self.TYP, 'platzieren', repr(gelenkwerte))
+
 
     def verwalte_signale(self, signal_map, port, bool_wert):
         # Ist eins der Inputsignal positiv, so wird das OnRun-Event wieder gestartet
@@ -223,7 +253,25 @@ class Roboter():
             self.Roboter.graspComponent(komp)
         elif funktion == 'platzieren':
             self.Roboter.releaseComponent(station)
-        
+    
+    def zu_transport(self, komp, station = None):
+        height = komp.BoundCenter.length() * 2
+        if station and self.Anlage=='real':
+            pos = [station.WorldPositionMatrix.P.X, station.WorldPositionMatrix.P.Y, station.WorldPositionMatrix.P.Z+height+200]
+            self.update_db(self.Komponente.Name, self.TYP, 'platzieren', repr(pos))
+        elif self.Anlage == 'real':
+            pos = [komp.WorldPositionMatrix.P.X, komp.WorldPositionMatrix.P.Y, komp.WorldPositionMatrix.P.Z+height+200]
+            self.update_db(self.Komponente.Name, self.TYP, 'greifen', repr(pos))
+            height=0
+        self.Roboter.jointMoveToComponent(station or komp, Tz=200+height , OnFace='top')
+        self.update_virtuelle_gelenkwerte()
+        self.Roboter.linearMoveToComponent(station or komp, Tx=70, Tz=height, OnFace='top')
+        if station:
+            self.Roboter.releaseComponent(station)
+        else:
+            self.Roboter.graspComponent(komp)
+        self.Roboter.delay(0.1)
+        self.Roboter.moveAway()
 
                     
 

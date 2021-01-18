@@ -20,7 +20,8 @@ class Maschine():
         self.istArbeiten = self.Komponente.findBehaviour('TO_PLC_ProcessIsRunning')
         self.istAuf = self.Komponente.findBehaviour('TO_PLC_DoorIsOpen')
         self.istZu = self.Komponente.findBehaviour('TO_PLC_DoorIsClosed')
-        self.Start = self.Komponente.findBehaviour('FROM_PLC_StartProcess') 
+        self.Start = self.Komponente.findBehaviour('FROM_PLC_StartProcess')
+        self.Update_signal = self.Komponente.findBehaviour('UpdateSignal')
         self.Zu = self.Komponente.findBehaviour('FROM_PLC_CloseDoor')
         # Eigenschaften der Komponente
         self.Anfangsprodukt = self.Komponente.getProperty('Schnittstelle::Anfangsprodukt')
@@ -33,16 +34,14 @@ class Maschine():
         self.suspend = vcscript.suspendRun
 
     def konfiguriere_komponente(self, vcscript):
-        # Referenz zum Pythonscript selbst
-        script = self.Komponente.findBehaviour('Script')
-        # Behaviours
         # - UpdateSignal, um Befehle erhalten zu können
-        if not self.Komponente.findBehaviour('UpdateSignal'):
+        if not self.Update_signal:
             self.Update_signal = self.Komponente.createBehaviour(vcscript.VC_STRINGSIGNAL, 'UpdateSignal')
-            self.Update_signal.Connections = [script]
         # - ComponentCreator, um Endprodukt zu erstellen
         if not self.Creator:
             self.Creator = self.Komponente.createBehaviour(vcscript.VC_COMPONENTCREATOR, 'ComponentCreator')
+            self.Creator.Interval = 0
+            self.Creator.Limit = 0
             self.Creator.getConnector('Output').connect(self.Container.getConnector('Input'))
         # Eigenschaften
         # - Falls Anfangsprodukt in Maschine, dann soll am Ende des Prozesses dieses in Endprodukt umgewandelt werden
@@ -59,23 +58,26 @@ class Maschine():
     # OnStart-Event
     def OnStart(self):
         # Objekt-Eigenschaften
+        self.Anlage = self.App.findComponent('Schnittstelle').getProperty('Schnittstelle::Anlage').Value
         self.Fertig = False
         self.Steuerung = 'automatisch'
-        # - Uri ist notwendig für den ComponentCreator, um das Endprodukt herzustellen
-        self.Uri = self.App.findComponent(self.Endprodukt.Value).Uri
         # Reset Werte
         # - Damit Roboter weiß, dass die Türen offen sind
         self.istAuf.signal(True)
-        # - Damit keine Produkt von selbst hergestellt werden
-        self.Creator.Interval = 0
-        self.Creator.Limit = 0
         # - Gibt dem Creator die notwendige Information, um das gewünsche Produkt zu erstellen
-        self.Creator.Part = self.Uri
+        if self.Endprodukt.Value:
+            uri = self.App.findComponent(self.Endprodukt.Value).Uri
+            self.Creator.Part = uri
+    
+    def check_verbindungen(self):
+        script = self.Komponente.findBehaviour('Script')
+        if script not in self.Update_signal.Connections:
+            self.Update_signal += [script]
 
     # OnSignal-Event und exklusive Funktionen
     def OnSignal(self, signal):
         # UpdateSignal ist ein Stringsignal. Gibt an, dass eine bestimmte Funktion aktiviert werden soll. Enthält ggf. extra Info.
-        if signal.Name == 'UpdateSignal':
+        if signal == self.Update_signal:
             update = literal_eval(signal.Value) 
             # Schalte um zwischen Automatik und Manuell
             if update['Funktion'] == 'auto':
@@ -133,17 +135,18 @@ class Maschine():
     def OnRun(self):
         while True:
             self.suspend()
-            if self.Steuerung == 'automatisch':
-                # Falls Türe offen und Produkt nicht fertig bearbeitet, dann starte Prozess
-                if self.istAuf and not self.Fertig:
-                    self.Auf.signal(False)
-                    self.Zu.signal(True)
-                    self.Start.signal(True)
-                # Falls Türe zu und Produkt fertig, dann Öffne Türen
-                elif self.istZu and self.Fertig:
-                    self.Zu.signal(False)
-                    self.Start.signal(False)
-                    self.Auf.signal(True)
+            if self.Anlage == 'real':
+                if self.Steuerung == 'automatisch':
+                    # Falls Türe offen und Produkt nicht fertig bearbeitet, dann starte Prozess
+                    if self.istAuf and not self.Fertig:
+                        self.Auf.signal(False)
+                        self.Zu.signal(True)
+                        self.Start.signal(True)
+                    # Falls Türe zu und Produkt fertig, dann Öffne Türen
+                    elif self.istZu and self.Fertig:
+                        self.Zu.signal(False)
+                        self.Start.signal(False)
+                        self.Auf.signal(True)
 
 
 

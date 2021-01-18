@@ -6,7 +6,8 @@ from ast import literal_eval
 class Transportstelle(Upvia):
     # __init__ und exklusive Funktionen
     def __init__(self, vcscript):
-        super(Transportstelle, self).__init__(self)
+        # Funktionen und Methoden der Oberklasse
+        super(Transportstelle, self).__init__()
         # Konstanten
         self.TYP = 'Transportstelle'
         # Referenz zur Anwendung, der Komponente und dem Moduel
@@ -24,15 +25,11 @@ class Transportstelle(Upvia):
         self.Komp_signal = self.Sensor.ComponentSignal
         self.Bool_signal = self.Sensor.BoolSignal
         # Eigenschaften
-        # - Zu erstellende Komponenten, falls das Signal gegeben wird
-        self.Produkte = self.Komponente.getProperty('Schnittstelle::Produkte')
-        if self.Produkte:
-            self.Produkte.OnChanged = self.ermittle_creators()
         self.Stop = self.Komponente.getProperty('Schnittstelle::Stop')
         # Erstelle Behaviours und Eigenschaften falls notwendig
         self.konfiguriere_komponente(vcscript)
-        # Pfad des  Fließbandes, falls verbunden und zu erstellende Produkte bestimmen
-        self.ermittle_path_produkte()
+        # Pfad des  Fließbandes, falls verbunden
+        self.check_path()
             
     def konfiguriere_komponente(self, vcscript):
         # Behaviours
@@ -50,9 +47,6 @@ class Transportstelle(Upvia):
         if not typ:
             typ = self.Komponente.createProperty(vcscript.VC_STRING, 'Schnittstelle::Typ')
             typ.Value = self.TYP
-        if not self.Produkte:
-            self.Produkte = self.Komponente.createProperty(vcscript.VC_STRING, 'Schnittstelle::Produkte')
-            self.Produkte.OnChanged = self.ermittle_creators()
         # Boolsignal mit Container verbinden, damit wir wissen ob eine Komponente platziert wurde oder nicht
         self.Container.TransitionSignal = self.Bool_signal
         # Verbinde die Signale mit diesem Script
@@ -60,18 +54,15 @@ class Transportstelle(Upvia):
 
     def OnStart(self):
         # Eigenschaften der Klasse upvia initialisert/resettet
-        self.reset_OnStart()
-        # Ermittle Path und Wert für Produkte
-        self.ermittle_path_produkte()
+        self.reset_OnStart(self.App)
+        self.Path = self.check_path()
         # Objekt-Eigenschaften
         self.Anlage = self.App.findComponent('Schnittstelle').getProperty('Schnittstelle::Anlage').Value
-        # - Variablen für die Position
         self.Path_distanz = self.Komponente.PositionMatrix.P.X
         self.Weltposition = self.Komponente.WorldPositionMatrix
         # Verbinde Signale mit diesem Script
         self.check_verbindungen()
         
-
     def OnSignal(self, signal):
          # Signale unterscheiden sich je nachdem, ob es sich um eine reale oder virtuelle Anlage handelt
         if self.Anlage == 'virtuell':
@@ -81,14 +72,17 @@ class Transportstelle(Upvia):
                 update = literal_eval(signal.Value)
                 if update['Funktion'] == 'signal':
                     # Erstelle Komponente, falls keine vorhanden und entferne nächste Komponente vor dem Sensor
-                    self.vergleiche_virtuell(update['Info'])
+                    self.vergleiche_virtuell(update['Info'], self.Path, self.Path_distanz, self.Weltposition)
             # KompSignal signalisert Komponenten auf dem Pfad/Sensor
             elif signal == self.Komp_signal:
-                self.vergleiche_real()
+                self.vergleiche_real(signal)
         elif self.Anlage == 'real':
             if signal == self.Komp_signal and signal.Value:
                 # Sende ein Signal an die virtuelle Anlage, dass ein Produkt hier ist
-                self.update_db('signal', signal.Value.Name)
+                self.update_db(self.Komponente.Name, self.TYP, 'signal', signal.Value.Name)
+            elif signal == self.Bool_signal and signal.Value:
+                if self.Container.Components:
+                    self.update_db(self.Komponente.Name, self.TYP, 'signal', self.Container.Components[0].Name)
 
     def OnRun(self):
         while True:
@@ -103,6 +97,13 @@ class Transportstelle(Upvia):
                 if self.Container.Components:
                     part = self.Container.Components[0]
                     self.Path.grab(part)
+            if not self.Container.Components:
+                self.Bool_signal.Value = False
+                self.Komp_signal.Value = None
+            else:
+                self.Bool_signal.Value = True
+                self.Komp_signal.Value = self.Container.Components[0]
+
     
     def check_verbindungen(self):
         script = self.Komponente.findBehaviour('Script')
@@ -113,15 +114,11 @@ class Transportstelle(Upvia):
         if script not in self.Bool_signal.Connections:
             self.Bool_signal.Connections += [script]
     
-    def ermittle_path_produkte(self):
+    def check_path(self):
         komp = self.Interface.ConnectedComponent
         if not komp:
             return
-        self.Path = komp.findBehavioursByType(self.Vcscript.VC_ONEWAYPATH)[0]
-        produkte = komp.getProperty('Schnittstelle::Produkte')
-        if not produkte:
-            return
-        self.Produkte.Value = produkte.Value
+        return komp.findBehavioursByType(self.Vcscript.VC_ONEWAYPATH)[0]
 
     
     
