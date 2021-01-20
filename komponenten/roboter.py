@@ -11,9 +11,9 @@ class Roboter():
         # Refernz zur Applikation, Komponente und Module
         self.App = vcscript.getApplication()
         self.Komponente = vcscript.getComponent()
-        self.vcrobot = vcrobot
-        self.vcscript = vcscript
-        # Behaviourw
+        self.vcRobot = vcrobot
+        self.Vcscript = vcscript
+        # Behaviours
         self.Container = self.Komponente.findBehavioursByType(vcscript.VC_COMPONENTCONTAINER)[0]
         # Eigenschaften
         self.Produkte = self.Komponente.getProperty('Schnittstelle::Produkte')
@@ -23,6 +23,7 @@ class Roboter():
         self.Stationen = []
         # Importierte Funktionen 
         self.update_db = Upvia().update_db
+        self.delay = vcscript.delay
         self.resume = vcscript.resumeRun
         self.suspend = vcscript.suspendRun
         # Erstelle Behaviours und Eigenschaften falls notwendig
@@ -34,6 +35,9 @@ class Roboter():
         self.Anlage = self.App.findComponent('Schnittstelle').getProperty('Schnittstelle::Anlage').Value
         if self.Anlage == 'real':
             self.Auto = True
+            if not self.Komponente.findBehaviour('UpdateScript'):
+                script = self.Komponente.createBehaviour(self.Vcscript.VC_SCRIPT, 'UpdateScript')
+                self.create_script(script)
         else:
             self.Auto = False
         self.Gelenke = None
@@ -42,9 +46,10 @@ class Roboter():
         self.Move_pos = None
         self.Maschine_pos = None
         self.Platzieren = None
+        self.Prozess_start = False
         # Referenz zum Hilfsobjekt Roboter und den Inputs
         # Deklaration von Roboter in  __init__ nicht möglich
-        self.Roboter = self.vcrobot.getRobot()
+        self.Roboter = self.vcRobot.getRobot()
         self.Input = self.Roboter.SignalMapIn
         self.Output = self.Roboter.SignalMapOut
         if self.Anlage == 'real':
@@ -79,18 +84,20 @@ class Roboter():
         elif self.Anlage == 'virtuell':
             if signal.Name == 'UpdateSignal':
                 update = literal_eval(signal.Value)
-                if update['Funktion'] == 'movePos':
+                if update['Funktion'] == 'gelenke':
+                    self.Gelenke = self.update_gelenke(update)
+                    self.resume()
+                elif update['Funktion'] == 'movePos':
                     self.Move_pos = self.update_gelenke(update)
                     self.resume()
                 elif update['Funktion'] == 'maschinePos':
                     self.Maschine_pos = self.update_gelenke(update)
                     self.resume()
 
-
     # OnRun-Event mit allen exklusiven Funktionen
     def OnRun(self):
         while True:
-            # Stoppt das Event. Über resume() wieder gestartet.
+            # Stoppt das Event. Über resume() wieder gestartet
             self.suspend()
             # Prüfe, welche Funktion ausgeführt werden soll
             if self.Anlage == 'real':
@@ -110,6 +117,9 @@ class Roboter():
                     self.next_move()   
                 elif self.Maschine_pos:
                     self.next_move_maschine()
+                elif self.Gelenke:
+                    self.Roboter.driveJoints(*self.Gelenke)
+
     
     def auto_ablauf(self):
         # Funktion, die für den automatischen Ablaufs des Roboters verantwortlich ist.
@@ -144,7 +154,7 @@ class Roboter():
             # Unterscheide zwischen Transport- und Bearbeitungsstelle (Maschine)
             # Speichere notwendige Informationen zum greifen und platzieren
             if typ == 'Maschine':
-                container = station.findBehavioursByType(self.vcscript.VC_COMPONENTCONTAINER)[0]
+                container = station.findBehavioursByType(self.Vcscript.VC_COMPONENTCONTAINER)[0]
                 offen = station.findBehaviour('TO_PLC_DoorIsOpen')
                 iStation = {'Station':station,'Typ': typ, 'Container':container, 'Offen': offen}
             elif typ == 'Transportstelle':
@@ -152,6 +162,26 @@ class Roboter():
                 iStation = {'Station':station,'Typ': typ, 'Signal':signal}
             self.Stationen.append(iStation)
         self.Port_anz = self.Input.PortCount
+    
+    def create_script(self, script):
+        script.Script='''
+import vcScript
+import vcHelpers.Robot2 as vcRobot
+from vccode import Upvia
+
+
+def OnRun():
+    komp_name = '{}'
+    typ = '{}'
+    update = Upvia().update_db
+    gelenke = vcRobot.getRobot().Joints
+
+    while True:
+        werte = [g.CurrentValue for g in gelenke]
+        update(komp_name, typ, 'gelenke', repr(werte))
+        vcScript.delay(0.1)
+        '''.format(self.Komponente.Name, self.TYP)
+
     
     def greife(self, iStation, komp):
         # Führt die notwendigen Bewegungen aus, um zur Komponenten zu gelangen und greifte diese.
@@ -235,11 +265,12 @@ class Roboter():
         werte = literal_eval(update['Info'])
         if update['Funktion'] == 'bewegeGelenk+':
             relativ = True
-        elif update['Funktion'] == 'movePos' or update['Funktion'] == 'maschinePos':
-            gelenke = [werte[0]]
-            werte = werte[1:]
+        # elif update['Funktion'] == 'movePos' or update['Funktion'] == 'maschinePos':
+        #     gelenke = [werte[0]]
+        #     werte = werte[1:]
         gelenke += [int(wert) for wert in werte] + [0, relativ]
         return gelenke
+    
     
     def update_manuell(self, funktion, info):
         # Gibt an, wo gegriffen/platziert werden soll
@@ -250,27 +281,6 @@ class Roboter():
             elif funktion == 'greifen':
                 self.Greifen = station_index
             self.resume()
-    
-    def update_pos_maschine(self, move, station):
-        pos = station.WorldPositionMatrix
-        frame1_mtx = station.findFeature('ProductLocationApproach').FramePositionMatrix
-        frame2_mtx = station.findFeature('ProcessLocation').FramePositionMatrix
-        frame1_weltpos = pos * frame1_mtx
-        frame2_weltpos = pos * frame2_mtx
-        pos1 = (frame1_weltpos.P.X, frame1_weltpos.P.Y, frame1_weltpos.P.Z)
-        pos2 = (frame2_weltpos.P.X, frame2_weltpos.P.Y, frame2_weltpos.P.Z)
-        pos = (move,) + pos1 + pos2
-        self.update_db(self.Komponente.Name, self.TYP, 'maschinePos', repr(pos))
-    
-    def update_pos_transport(self, height, komp, station=None):
-        if station:
-            pos = ('platzieren', station.WorldPositionMatrix.P.X, station.WorldPositionMatrix.P.Y, station.WorldPositionMatrix.P.Z+height+200)
-        elif komp:
-            pos = ('greifen', komp.WorldPositionMatrix.P.X, komp.WorldPositionMatrix.P.Y, komp.WorldPositionMatrix.P.Z+height+200)
-        else:
-            return
-        self.update_db(self.Komponente.Name, self.TYP, 'movePos', repr(pos))
-
 
     def verwalte_signale(self, signal_map, port, bool_wert):
         # Ist eins der Inputsignal positiv, so wird das OnRun-Event wieder gestartet
@@ -282,7 +292,7 @@ class Roboter():
         # Anfahrt zur Maschine
         # Frame 'ProcessLocation' muss im Root-Feature der Root-Komponente, d.h. 'ganz oben' erstellt werden
         # Obige Frame sollte an der gleichen Stelle wie die Frame 'ProductLocation' sein
-        self.update_pos_maschine(move, station)
+        #self.update_pos_maschine(move, station)
         self.Roboter.jointMoveToComponent(station, ToFrame = 'ProductLocationApproach')
         self.Roboter.jointMoveToComponent(station, ToFrame = 'ProcessLocation')
         if move == 'greifen':
@@ -294,7 +304,6 @@ class Roboter():
         height = komp.BoundCenter.length() * 2
         if not self.Anlage=='real':
             return
-        self.update_pos_transport(height, komp, station)
         if not station:
             height=0
         self.Roboter.jointMoveToComponent(station or komp, Tz=200+height , OnFace='top')

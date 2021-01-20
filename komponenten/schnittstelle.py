@@ -110,7 +110,7 @@ class Schnittstelle():
         delay_zeit = 0.1
         if self.Anlage == 'virtuell':
             db = Datenbank(self.PFAD_DATENBANK_VIRTUELL)
-            delay_zeit = 0.05
+            delay_zeit = 0.08
         return db, delay_zeit
 
     def reset_zeile(self, liste, zeile):
