@@ -26,6 +26,7 @@ class Schnittstelle():
         self.App = vcscript.getApplication()
         # Referenz zur Komponente
         self.Komponente = vcscript.getComponent()
+        self.Komponente.Name = 'Schnittstelle'
         # Erstelle notwendige Eigenschaften und Behaviours
         self.konfiguriere_komponente(vcscript)
         # Erstelle Tabelle, falls Datenbank neu erstellt wurde
@@ -106,10 +107,10 @@ class Schnittstelle():
         # Delay-Zeiten wurden willkürlich gewählt, aber die der virtuellen sollte kleiner als die der realen sein
         # Falls nicht virtuell, wird automatisch real angenommen
         db = Datenbank(self.PFAD_DATENBANK_REAL)
-        delay_zeit = 0.2
+        delay_zeit = 0.1
         if self.Anlage == 'virtuell':
             db = Datenbank(self.PFAD_DATENBANK_VIRTUELL)
-            delay_zeit = 0.1
+            delay_zeit = 0.05
         return db, delay_zeit
 
     def reset_zeile(self, liste, zeile):

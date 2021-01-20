@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from .datenbank import Datenbank
 from ast import literal_eval
-import konstanten
+from upvia import Upvia
 
 class Maschine():
     # __init__ und exklusive Funktionen
@@ -27,11 +26,15 @@ class Maschine():
         self.Anfangsprodukt = self.Komponente.getProperty('Schnittstelle::Anfangsprodukt')
         self.Endprodukt = self.Komponente.getProperty('Schnittstelle::Endprodukt')
         self.Prozesszeit = self.Komponente.getProperty('ProcessTime')
+        # Eigenschaften
+        self.Checked = False
         # Erstelle Behaviours oder Eigenschaften falls notwendig
         self.konfiguriere_komponente(vcscript)
         # Importierte Funktionen
+        self.delay = vcscript.delay
         self.resume = vcscript.resumeRun    
         self.suspend = vcscript.suspendRun
+        self.update_db = Upvia().update_db
 
     def konfiguriere_komponente(self, vcscript):
         # - UpdateSignal, um Befehle erhalten zu können
@@ -54,9 +57,14 @@ class Maschine():
         if not self.Komponente.getProperty('Schnittstelle::Typ'):
             typ = self.Komponente.createProperty(vcscript.VC_STRING, 'Schnittstelle::Typ')
             typ.Value = self.TYP
+        # Verbindungen zum Script
+        self.check_verbindungen()
+        
 
     # OnStart-Event
     def OnStart(self):
+        if not self.Checked:
+            self.check_verbindungen()
         # Objekt-Eigenschaften
         self.Anlage = self.App.findComponent('Schnittstelle').getProperty('Schnittstelle::Anlage').Value
         self.Fertig = False
@@ -68,54 +76,77 @@ class Maschine():
         if self.Endprodukt.Value:
             uri = self.App.findComponent(self.Endprodukt.Value).Uri
             self.Creator.Part = uri
-    
-    def check_verbindungen(self):
-        script = self.Komponente.findBehaviour('Script')
-        if script not in self.Update_signal.Connections:
-            self.Update_signal += [script]
+        if self.Anlage == 'virtuell':
+            self.Prozesszeit.Value = 1
+
 
     # OnSignal-Event und exklusive Funktionen
     def OnSignal(self, signal):
-        # UpdateSignal ist ein Stringsignal. Gibt an, dass eine bestimmte Funktion aktiviert werden soll. Enthält ggf. extra Info.
-        if signal == self.Update_signal:
-            update = literal_eval(signal.Value) 
-            # Schalte um zwischen Automatik und Manuell
-            if update['Funktion'] == 'auto':
-                self.switch_auto()
-            else:
-                self.Steuerung = 'manuell'
-            # Stelle die Prozesszeit ein
-            if update['Funktion'] == 'zeit':
-                self.update_prozesszeit(update['Info'])
-            # Öffne die Türen
-            if update['Funktion'] == 'auf':
-                self.Auf.signal(True)
-            # Schließe die Türen
-            elif update['Funktion'] == 'zu':
-                self.Zu.signal(True)
-            # Starte den Prozess. Funktioniert nur mit geschlossenen Türen.
-            elif update['Funktion'] == 'start':
-                self.Start.signal(True)
-        # BoolSignal, dass angibt, ob eine Komponente platziert wurde oder nicht
-        elif signal == self.Belegt:
-            # Belegt und nicht gleich Endzustand, dann starte Prozess
-            if signal.Value and self.Container.Components[0].Name != self.Endprodukt.Value:
-                self.resume()
-            # Belegt, aber gleich Endprodukt, dann ist Prozess fertig
-            elif signal.Value and self.Container.Components[0].Name == self.Endprodukt.Value:
-                self.Fertig = True
-            # Sonst nicht fertig
-            else:
-                self.Fertig = False
-        # Prozesssignal: aktiviert, am Anfang und Ende
-        elif signal == self.istArbeiten:
-            # Prozess zu Ende: Falls Komponente gleich Anfangszustand, dann wandle um in Endzustand
-            if not self.istArbeiten.Value:
-                if self.Container.Components and self.Container.Components[0].Name == self.Anfangsprodukt.Value:
-                    self.Container.Components[0].delete()
-                    self.Creator.create()
-                self.Fertig = True
-                self.resume()
+        if self.Anlage == 'real':
+            # UpdateSignal ist ein Stringsignal. Gibt an, dass eine bestimmte Funktion aktiviert werden soll. Enthält ggf. extra Info.
+            if signal == self.Update_signal:
+                update = literal_eval(signal.Value) 
+                # Schalte um zwischen Automatik und Manuell
+                if update['Funktion'] == 'auto':
+                    self.switch_auto()
+                else:
+                    self.Steuerung = 'manuell'
+                # Stelle die Prozesszeit ein
+                if update['Funktion'] == 'zeit':
+                    self.update_prozesszeit(update['Info'])
+                # Öffne die Türen
+                elif update['Funktion'] == 'auf':
+                    self.Auf.signal(True)
+                # Schließe die Türen
+                elif update['Funktion'] == 'zu':
+                    self.Zu.signal(True)
+                # Starte den Prozess. Funktioniert nur mit geschlossenen Türen.
+                elif update['Funktion'] == 'start':
+                    self.Start.signal(True)
+            # BoolSignal, dass angibt, ob eine Komponente platziert wurde oder nicht
+            elif signal == self.Belegt:
+                # Belegt und nicht gleich Endzustand, dann starte Prozess
+                if signal.Value and self.Container.Components[0].Name != self.Endprodukt.Value:
+                    self.resume()
+                    self.update_db(self.Komponente.Name, self.TYP, 'belegt', '1')
+                # Belegt, aber gleich Endprodukt, dann ist Prozess fertig
+                elif signal.Value and self.Container.Components[0].Name == self.Endprodukt.Value:
+                    self.Fertig = True
+                # Sonst nicht fertig
+                else:
+                    self.Fertig = False
+            # Prozesssignal: aktiviert, am Anfang und Ende
+            elif signal == self.istArbeiten:
+                if signal.Value:
+                    self.update_db(self.Komponente.Name, self.TYP, 'start', self.Prozesszeit.Value)
+                # Prozess zu Ende: Falls Komponente gleich Anfangszustand, dann wandle um in Endzustand
+                elif not signal.Value:
+                    if self.Container.Components and self.Container.Components[0].Name == self.Anfangsprodukt.Value:
+                        self.Container.Components[0].delete()
+                        self.Creator.create()
+                    self.Fertig = True
+                    self.resume()
+                    self.update_db(self.Komponente.Name, self.TYP, 'fertig', '1')
+            elif signal == self.Auf:
+                self.update_db(self.Komponente.Name, self.TYP, 'auf', '1')
+            elif signal == self.Zu:
+                self.update_db(self.Komponente.Name, self.TYP, 'zu', '1')
+        elif self.Anlage == 'virtuell':
+            if signal == self.Update_signal:
+                update = literal_eval(signal.Value)
+                if update['Funktion'] == 'start':
+                    self.Start.signal(True)
+                    self.Prozesszeit.Value = int(update['Info'])
+                elif update['Funktion'] == 'fertig':
+                    self.Start.signal(False)
+                elif update['Funktion'] == 'auf':
+                    self.Zu.signal(False)
+                    self.Start.signal(False)
+                    self.Auf.signal(True)
+                elif update['Funktion'] == 'zu':
+                    self.Start.signal(False)
+                    self.Auf.signal(True)
+                    self.Zu.signal(True)
 
     def switch_auto(self):
         # Wechsel zwischen Manuell und Automatik
@@ -135,19 +166,39 @@ class Maschine():
     def OnRun(self):
         while True:
             self.suspend()
-            if self.Anlage == 'real':
-                if self.Steuerung == 'automatisch':
-                    # Falls Türe offen und Produkt nicht fertig bearbeitet, dann starte Prozess
-                    if self.istAuf and not self.Fertig:
-                        self.Auf.signal(False)
-                        self.Zu.signal(True)
-                        self.Start.signal(True)
-                    # Falls Türe zu und Produkt fertig, dann Öffne Türen
-                    elif self.istZu and self.Fertig:
-                        self.Zu.signal(False)
-                        self.Start.signal(False)
-                        self.Auf.signal(True)
+            if self.Anlage == 'real' and self.Steuerung == 'automatisch':
+                # Falls Türe offen und Produkt nicht fertig bearbeitet, dann starte Prozess
+                if self.istAuf and not self.Fertig:
+                    self.Auf.signal(False)
+                    self.Zu.signal(True)
+                    self.Start.signal(True)
+                # Falls Türe zu und Produkt fertig, dann Öffne Türen
+                elif self.istZu and self.Fertig:
+                    self.Zu.signal(False)
+                    self.Start.signal(False)
+                    self.Auf.signal(True)
+                
 
+    def check_verbindungen(self):
+        script = self.Komponente.findBehaviour('Script')
+        if script:
+            if script not in self.Update_signal.Connections:
+                self.Update_signal.Connections += [script]
+            if script not in self.Belegt.Connections:
+                self.Belegt.Connections += [script]
+            if script not in self.istAuf.Connections:
+                self.istAuf.Connections += [script]
+            if script not in self.istZu.Connections:
+                self.istZu.Connections += [script]
+            if script not in self.istArbeiten.Connections:
+                self.istArbeiten.Connections += [script]
+            if script not in self.Auf.Connections:
+                self.Auf.Connections += [script]
+            if script not in self.Zu.Connections:
+                self.Zu.Connections += [script]
+            if script not in self.Start.Connections:
+                self.Start.Connections += [script]
+            self.Checked = True
 
 
 

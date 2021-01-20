@@ -10,3 +10,4 @@ from komponenten.transport import Transport
 from komponenten.roboter import Roboter
 from komponenten.maschine import Maschine
 from komponenten.transportstelle import Transportstelle
+from komponenten.creator import Creator

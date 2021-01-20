@@ -97,12 +97,12 @@ class Transportstelle(Upvia):
                 if self.Container.Components:
                     part = self.Container.Components[0]
                     self.Path.grab(part)
-            if not self.Container.Components:
-                self.Bool_signal.Value = False
-                self.Komp_signal.Value = None
-            else:
-                self.Bool_signal.Value = True
-                self.Komp_signal.Value = self.Container.Components[0]
+                if not self.Container.Components:
+                    self.Bool_signal.Value = False
+                    self.Komp_signal.Value = None
+                else:
+                    self.Bool_signal.Value = True
+                    self.Komp_signal.Value = self.Container.Components[0]
 
     
     def check_verbindungen(self):

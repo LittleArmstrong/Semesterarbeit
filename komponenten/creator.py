@@ -1,11 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-class Transport():
+class Creator():
     # __init__ und exklusive Funktionen
     def __init__(self, vcscript):
-        # Konstanten
-        self.TYP = 'Creator'
         # Referenz zur Anwendung, Komponente und Modul
         self.App = vcscript.getApplication()
         self.Komponente = vcscript.getComponent()
@@ -19,7 +17,16 @@ class Transport():
         # Erstelle ComponentCreator und -Container zum Erstellen und Aufbewahren von Komponenten
         self.konfiguriere_creator()
     
-    def konfiguriere_creator(self):
+    def OnStart(self):
+        pass
+
+    def OnSignal(self, signal):
+        pass
+
+    def OnRun(self):
+        pass
+
+    def konfiguriere_creator(self, prod=None):
         produkte = self.Produkte.Value
         alle_creator = None
         # Erstelle abh. von Produktanzahl ComponentCreator
