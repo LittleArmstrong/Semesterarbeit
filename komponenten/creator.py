@@ -2,31 +2,60 @@
 # -*- coding: utf-8 -*-
 
 class Creator():
-    # __init__ und exklusive Funktionen
+    """Klasse zum Erstellen von Komponenten für die Förderbänder (Transport). Irgendeine Komponente nutzbar. Pythonscript namens Script 
+    hinzufügen mit folgendem Inhalt:
+    import vcScript
+    from vccode import Creator
+
+    Creator(vcScript)
+    
+    Attribute
+    - - - - -
+    App - vcApplication
+        Referenz zur Anwendung
+    Komponente - vcComponent
+        diese Komponente
+    Produkte - vcProperty
+        die zu erstellenden Produkte
+    Vcscript - module
+        Modul vcScript
+
+    Methode
+    - - - - -
+    konfig_creator(prod=None) -> None
+        erstellt ComponentCreator der gleichen Anzahl an Produkten in der Eigenschaft Produkte
+    """
     def __init__(self, vcscript):
-        # Referenz zur Anwendung, Komponente und Modul
+        """Legt Attribute fest, erstellt Eigenschaft Produkte und erstellt ComponentCreator, welche bei Änderung der Eigenschaft
+        Produkte nochmal geprüft werden.
+
+        Parameter
+        - - - - -
+        vcscript - module
+            Modul vcScript
+        """
+        # Eigenschaften
         self.App = vcscript.getApplication()
         self.Komponente = vcscript.getComponent()
         self.Komponente.Name = 'Creator'
-        self.Vcscript = vcscript
-        # Eigenschaften
         self.Produkte = self.Komponente.getProperty('Schnittstelle::Produkte')
+        self.Vcscript = vcscript
+        # Erstelle Eigenschaft Produkte falls nicht vorhanden
         if not self.Produkte:
             self.Produkte = self.Komponente.createProperty(vcscript.VC_STRING, 'Schnittstelle::Produkte')
-        self.Produkte.OnChanged = self.konfiguriere_creator
+        self.Produkte.OnChanged = self.konfig_creator
         # Erstelle ComponentCreator und -Container zum Erstellen und Aufbewahren von Komponenten
-        self.konfiguriere_creator()
-    
-    def OnStart(self):
-        pass
+        self.konfig_creator()
 
-    def OnSignal(self, signal):
-        pass
+    def konfig_creator(self, prod=None):
+        """Erstelle ComponentCreator abh. von der Anzahl an mit Komma getrennten Produkten in der Eigenschaft Produkte.
+        Die ComponentCreator werden nach dem Produktnamen + __HIDE__ genannt.
 
-    def OnRun(self):
-        pass
-
-    def konfiguriere_creator(self, prod=None):
+        Parameter
+        - - - - -
+        prod=None - vcProperty
+            notwendig, da das Event OnChanged einer Eigenschaft sich selbst als Argument der bestimmten Funktion auswählt
+        """
         produkte = self.Produkte.Value
         alle_creator = None
         # Erstelle abh. von Produktanzahl ComponentCreator
@@ -49,9 +78,12 @@ class Creator():
         # Benenne die ComponentCreator nach dem zu erstellenden Produkt
         for i, produkt in enumerate(produkte):
             creator = alle_creator[i]
+            try:
+                uri = self.App.findComponent(produkt).Uri
+            except:
+                print(self.Komponente.Name, 'Produkt {} im Layout nicht gefunden.'.format(produkt))
             container = alle_container[i]
             creator.Name = produkt + '__HIDE__'
             container.Name = produkt + '__HIDE__'
-            uri = self.App.findComponent(produkt).Uri
             creator.Part = uri
             creator.getConnector('Output').connect(container.getConnector('Input'))

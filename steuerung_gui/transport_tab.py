@@ -7,7 +7,28 @@ from komponenten.datenbank import Datenbank
 
 
 class TransportTab():
+    """Erstellt den Reiter Transport samt Inhalt und stellt die Funktionen bereit.
+
+    TYP - str
+        zum Erkennen der Komponenten für die die Funktionen bestimmt sind
+    Steuerung - Steuerung
+        Referenz zum Steuerung-Objekt
+    Tab_transport - Frame
+        die Frame, in dem die Elemente platziert werden
+    Transport_komponenten - list
+        alle Komponenten im Layout mit dem Typ Transport
+    Transport_auswahl - StringVar
+        speichert die ausgewählte Komponente zu der die Informationen gesendet werden sollen
+    """
+    
     def __init__(self, steuerung):
+        """Eine Zeile = eine Funktion. Platziere die ganzen Funktionen.
+
+        Parameter
+        - - - - -
+        steuerung - Steuerung
+            um Zugriff zu den Komponentennamen und Funktionen zu erhalten
+        """
         self.TYP = 'Transport'
 
         self.Steuerung = steuerung
@@ -24,6 +45,8 @@ class TransportTab():
     
 
     def transportauswahl(self):
+        """Platziert eine Auswahlliste mit den Komponentennamen.
+        """
         self.Transport_auswahl.set(self.Transport_komponenten[0])
 
         frame_auswahl = tk.Frame(self.Tab_transport)
@@ -34,6 +57,10 @@ class TransportTab():
 
 
     def funktion_komponente_umleiten(self):
+        """Auswahlliste mit Komponentennamen und Schaltfläche. 
+
+        Gibt an, wohin die Produkte umgeleitet werden sollen.
+        """
         zu_komponente = tk.StringVar()
         zu_komponente.set(self.Transport_komponenten[1])
 

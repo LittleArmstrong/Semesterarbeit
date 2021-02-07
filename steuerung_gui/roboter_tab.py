@@ -1,13 +1,37 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 import tkinter as tk
 from tkinter import ttk
 from komponenten.datenbank import Datenbank
 
 
 class RoboterTab:
+    """Erstellt den Reiter Roboter samt Inhalt und stellt die Funktionen bereit.
+    
+    Attribute
+    - - - - - 
+    TYP - str
+        zum Erkennen der Komponenten für die die Funktionen bestimmt sind
+    Steuerung - Steuerung
+        Referenz zum Steuerung-Objekt
+    Tab_Roboter - Frame
+        die Frame, in dem die Elemente platziert werden
+    Roboter_komponenten - list
+        alle Komponenten im Layout mit dem Typ Roboter
+    Roboter_auswahl - StringVar
+        speichert die ausgewählte Komponente zu der die Informationen gesendet werden sollen
+    Vcmd - vcmd
+        zum Abfangen von eingegebenen Werten
+    """
+
     def __init__(self, steuerung):
+        """Eine Zeile = eine Funktion. Platziere die ganzen Funktionen.
+
+        Parameter
+        - - - - -
+        steuerung - Steuerung
+            um Zugriff zu den Komponentennamen und Funktionen zu erhalten
+        """
         self.TYP = 'Roboter'
 
         self.Steuerung = steuerung
@@ -26,6 +50,8 @@ class RoboterTab:
     
     
     def roboterauswahl(self):
+        """Platziert eine Auswahlliste mit den Komponentennamen.
+        """
         self.Roboter_auswahl.set(self.Roboter_komponenten[0])
         
         frame_auswahl = tk.Frame(self.Tab_roboter)
@@ -36,6 +62,12 @@ class RoboterTab:
     
     
     def funktion_automatisch_greifen_platzieren(self):
+        """ Schaltfläche zum Wechseln zwischen Automatisch und Manuell.
+
+        Textfeld und Schaltfläche, um die Station auszuwählen an der die beabsichtigte Bewegung (greifen oder platzieren) 
+        durchgeführt werden soll.
+        """
+
         greifstelle = tk.StringVar()
         platzierstelle = tk.StringVar() 
         
@@ -63,12 +95,25 @@ class RoboterTab:
 
     
     def cmd_bewegen(self, name, relativ, gelenk_werte):
+        """Gibt den Befehl an den Roboter eine bestimmte Haltung einzunehmen.
+
+        Parameter
+        - - - - - 
+        name - str
+            Name der Komponente
+        relativ - int
+            ob es sich um relative oder absolute Gelenkwerte handelt
+        gelenk_werte - list
+            die Werte für die einzelnen Gelenke (6)
+        """
         funktion = 'bewegeGelenk' + '+' * relativ
         info = repr(gelenk_werte)
         self.Steuerung.update_datenbank(name, self.TYP, funktion, info)
 
 
-    def funktion_bewege_gelenke(self,):
+    def funktion_bewege_gelenke(self):
+        """ Für jedes Gelenk ein Textfeld und eine Schaltfläche zum Absenden der Informationen an die Datenbank.
+        """
         relativ = tk.IntVar()
         relativ.set(0)
 
@@ -94,6 +139,13 @@ class RoboterTab:
             self.Steuerung.platziere_widget(widget, breite)
     
     def OnValidierung(self, entry_wert):
+        """Nur Zahlen und Minuszeichen erlaubt.
+
+        Parameter
+        - - - - -
+        entry_wert - str
+            der eingegebene Wert, welches geprüft werden soll
+        """
         if entry_wert=='' or entry_wert.isdigit() or entry_wert.startswith('-'):
             return True
         else:

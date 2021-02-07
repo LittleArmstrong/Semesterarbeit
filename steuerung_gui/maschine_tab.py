@@ -6,7 +6,33 @@ from tkinter import ttk
 from komponenten.datenbank import Datenbank
 
 class MaschineTab:
-    def __init__(self, steuerung,):
+    """
+    Erstellt den Reiter Maschine samt Inhalt und stellt die Funktionen bereit.
+    
+    Attribute
+    - - - - - 
+    TYP - str
+        zum Erkennen der Komponenten für die die Funktionen bestimmt sind
+    Steuerung - Steuerung
+        Referenz zum Steuerung-Objekt
+    Tab_Maschine - Frame
+        die Frame, in dem die Elemente platziert werden
+    Maschine_komponenten - list
+        alle Komponenten im Layout mit dem Typ Maschine
+    Maschine_auswahl - StringVar
+        speichert die ausgewählte Komponente zu der die Informationen gesendet werden sollen
+    Vcmd - vcmd
+        zum Abfangen von eingegebenen Werten
+    """
+
+    def __init__(self, steuerung):
+        """Eine Zeile = eine Funktion. Platziere die ganzen Funktionen.
+
+        Parameter
+        - - - - -
+        steuerung - Steuerung
+            um Zugriff zu den Komponentennamen und Funktionen zu erhalten
+        """
         self.TYP = 'Maschine'
 
         self.Steuerung = steuerung
@@ -24,6 +50,8 @@ class MaschineTab:
         self.funktion_auf_start_zu()
 
     def maschineauswahl(self):
+        """Platziert eine Auswahlliste mit den Komponentennamen.
+        """
         self.Maschine_auswahl.set(self.Maschine_komponenten[0])
         
         frame_auswahl = tk.Frame(self.Tab_maschine)
@@ -33,6 +61,9 @@ class MaschineTab:
         self.Steuerung.platziere_widget(maschineliste)
     
     def funktion_automatisch(self):
+        """ Textfeld und zwei Schaltflächen. Zum Einstellen der Prozesszeit der Maschine und um zwischen Automatik und Manuell
+        zu wechseln.
+        """
         prozesszeit = tk.StringVar()
         prozesszeit.set('1')
 
@@ -52,6 +83,8 @@ class MaschineTab:
             self.Steuerung.platziere_widget(widget, breite)
     
     def funktion_auf_start_zu(self):
+        """Drei Schaltflächen, um die Türen zu öffnen oder zu schließen und um den Prozess zu starten.
+        """
         fram_asz = tk.Frame(self.Tab_maschine)
         fram_asz.grid(row=2, padx=(10,0), pady=(5,5), sticky='W')
 
@@ -71,6 +104,13 @@ class MaschineTab:
 
 
     def OnValidierung(self, entry_wert):
+        """Nur Zahlen düren im Textfeld eingegeben werden.
+
+        Parameter
+        - - - - -
+        entry_wert - str
+            der eingegebene Wert, der geprüft wird
+        """
         if entry_wert=='' or entry_wert.isdigit():
             return True
         else:

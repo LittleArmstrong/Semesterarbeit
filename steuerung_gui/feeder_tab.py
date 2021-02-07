@@ -6,7 +6,32 @@ from tkinter import ttk
 from komponenten.datenbank import Datenbank
 
 class FeederTab:
+    """Erstellt den Reiter Feeder samt Inhalt und stellt die Funktionen bereit.
+    
+    Attribute
+    - - - - - 
+    TYP - str
+        zum Erkennen der Komponenten für die die Funktionen bestimmt sind
+    Steuerung - Steuerung
+        Referenz zum Steuerung-Objekt
+    Tab_feeder - Frame
+        die Frame, in dem die Elemente platziert werden
+    Feeder_komponenten - list
+        alle Komponenten im Layout mit dem Typ Feeder
+    Feeder_auswahl - StringVar
+        speichert die ausgewählte Komponente zu der die Informationen gesendet werden sollen
+    Vcmd - vcmd
+        zum Abfangen von eingegebenen Werten
+    """
+
     def __init__(self, steuerung):
+        """Eine Zeile = eine Funktion. Platziere die ganzen Funktionen.
+
+        Parameter
+        - - - - -
+        steuerung - Steuerung
+            um Zugriff zu den Komponentennamen und Funktionen zu erhalten
+        """
         self.TYP = 'Feeder'
 
         self.Steuerung = steuerung
@@ -25,6 +50,8 @@ class FeederTab:
 
 
     def feederauswahl(self):
+        """Platziert eine Auswahlliste mit den Komponentennamen.
+        """
         self.Feeder_auswahl.set(self.Feeder_komponenten[0])
         
         frame_auswahl = tk.Frame(self.Tab_feeder)
@@ -35,6 +62,8 @@ class FeederTab:
     
 
     def funktion_erstelle(self):
+        """Platziert Schaltfläche. Klicken sendet ein Befehl an die Komponente ein Produkt herzustellen
+        """
         frame_erstelle = tk.Frame(self.Tab_feeder)
         frame_erstelle.grid(row=1, padx=(10,0), pady=(5,5), sticky='W')
 
@@ -45,6 +74,8 @@ class FeederTab:
 
 
     def funktion_intervall(self):
+        """Textfeld mit Schaltfläche. Zum einstellen des Erzeugungsintervalls.
+        """
         sofort = tk.IntVar()
         sofort.set(1)
         intervall = tk.StringVar()
@@ -65,12 +96,29 @@ class FeederTab:
 
 
     def OnValidierung(self, entry_wert):
+        """Lässt nur die Eingabe von Zahlen zu.
+
+        Parameter
+        - - - - -
+        entry_wert - str
+            die Eingabe im Textfeld
+        """
         if entry_wert.isdigit() or entry_wert == '':
             return True
         else:
             return False
 
     def cmd_funktion_intervall(self, checkbox, komponente, intervall):
+        """
+        Parameter
+        - - - - - 
+        checkbox - int
+            0 - Lege Erzeugungsintervall fest, 1 - erstelle Produkt und lege Erzeugungsintervall fest
+        komponente - str
+            Name der Komponente, zu dem der Befehl gesendet werden soll
+        intervall - str
+            Wert des Erzeugungsintervalls
+        """
         funktion = 'intervall'
         if checkbox:
             funktion = 'intervall_sofort'
