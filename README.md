@@ -32,3 +32,5 @@ Zum Starten des Projekts müssen folgende Dateien geöffnet werden: real.vcmx, v
 
 Über steuerung.pyw können Befehle an die reale Anlage gesendet werden. Die virtuelle Anlage sollte sich der realen Anlage anpassen. Dies kann man sehen, wenn man einer der Anlagen für kurze Zeit pausiert und dann wieder startet.
 
+
+
