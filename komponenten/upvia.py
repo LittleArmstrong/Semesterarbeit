@@ -149,8 +149,10 @@ class Upvia(object):
                     self.Aktuelle_komp.delete()
                     self.Aktuelle_komp = None
                 except:
-                    pass
+                    self.Aktuelle_komp = None
             self.Virtuell = False
+            self.Real = False
+            
 
     def vergleiche_virtuell(self, prod_name, path, path_distanz, position):
         """Vergleicht virtuelle und reale Signale miteinander und erstellt je nachdem eine Komponente.
