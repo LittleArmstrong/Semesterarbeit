@@ -1,5 +1,12 @@
 # Semesterarbeit - Schnittstelle zwischen realer und virtueller Anlage
 # Projektanleitung
+## Videos
+[![Notwendige Voreinstellungen](http://img.youtube.com/vi/YOUTUBE_VIDEO_ID_HERE/0.jpg)](http://www.youtube.com/watch?v=97i3rs7vjHs)
+
+[![Projektvorführung](http://img.youtube.com/vi/YOUTUBE_VIDEO_ID_HERE/0.jpg)](http://www.youtube.com/watch?v=O8_jhqqcKM0)
+
+[![Projektaufbau](http://img.youtube.com/vi/YOUTUBE_VIDEO_ID_HERE/0.jpg)](http://www.youtube.com/watch?v=_2xapZwTQC8)
+
 ## 1 Pfad zum Sqlite-Modul in der Umgebungsvariable speichern
 In Visual Components 4.2 muss der Pfad zum sqlite-Modul in der Umgebungsvariable PATH gespeichert werden, damit diese importiert werden kann. Dieser befindet sich im Ordner DLLS, welches (abh. vom Installationsort) folgenden Pfad hat: „C:\Program Files\Visual Components\Visual Components Premium 4.2\Python\DLLs“.
 
